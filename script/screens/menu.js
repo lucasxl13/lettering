@@ -1,112 +1,146 @@
 import { t, loadLanguage, getLanguage } from "../systems/language.js";
+import { getSession, logout } from "../systems/auth.js";
+import { openLoginModal } from "./access.js";
+import { openSettings } from "./settings.js";
+import { loadModes } from "./modes.js";
+import { openGuestWarning } from "./guest-warning.js";
+import { startGridEffects } from "../systems/grid-effects.js";
+
+const TITLE = "LETTERING";
+const LANGUAGES = [
+    { code: "pt-BR", flag: "br", label: "Português" },
+    { code: "en-US", flag: "us", label: "English" },
+    { code: "es-ES", flag: "es", label: "Español" }
+];
 
 export function loadMenu() {
-
     const app = document.getElementById("app");
+    const session = getSession();
+    const userName = session
+        ? session.user?.name || session.user?.email || "Player"
+        : "";
 
-app.innerHTML = `
+    app.innerHTML = `
+        <main class="menu">
+            <div class="title">
+                ${[...TITLE].map(letter => `<div class="letter-block">${letter}</div>`).join("")}
+            </div>
 
-<div class="menu">
+            ${createAccountCard(session, userName)}
 
-    <div class="title">
+            <button class="menu_button" id="play-button">${t("play")}</button>
+            <button class="menu_button" id="settings-button">${t("settings")}</button>
+            <button class="menu_button" id="credits-button">${t("credits")}</button>
+            <button class="menu_button" id="help-button">${t("help")}</button>
 
-        <div class="letter-block">L</div>
+            <div class="languages">
+                ${LANGUAGES.map(createLanguageButton).join("")}
+            </div>
+        </main>
+    `;
 
-        <div class="letter-block">E</div>
+    setupTitleAnimation(() => startGridEffects(document.querySelector(".menu")));
+    setupLanguageButtons();
+    document.getElementById("play-button").addEventListener("click", () => {
+        if (session) {
+            loadModes(loadMenu);
+            return;
+        }
 
-        <div class="letter-block">T</div>
+        openGuestWarning({
+            onContinue: () => loadModes(loadMenu),
+            onLoginSuccess: () => loadModes(loadMenu)
+        });
+    });
+    document.getElementById("settings-button").addEventListener("click", openSettings);
 
-        <div class="letter-block">T</div>
+    if (session) {
+        document.getElementById("logout-button").addEventListener("click", async () => {
+            await logout();
+            loadMenu();
+        });
+    } else {
+        document.getElementById("login-from-menu-button").addEventListener("click", () => {
+            openLoginModal(loadMenu);
+        });
+    }
+}
 
-        <div class="letter-block">E</div>
+function createAccountCard(session, userName) {
+    if (!session) {
+        return `
+            <div class="account-card">
+                <div class="user-avatar" aria-hidden="true">?</div>
+                <div class="user-details">
+                    <strong>${t("guest")}</strong>
+                </div>
+                <button id="login-from-menu-button">${t("login")}</button>
+            </div>
+        `;
+    }
 
-        <div class="letter-block">R</div>
+    const safeName = escapeHtml(userName);
+    const initial = escapeHtml(userName.trim().charAt(0).toUpperCase() || "U");
 
-        <div class="letter-block">I</div>
+    return `
+        <div class="account-card">
+            <div class="user-avatar" aria-hidden="true">${initial}</div>
+            <div class="user-details">
+                <strong>${safeName}</strong>
+            </div>
+            <button id="logout-button">${t("logout")}</button>
+        </div>
+    `;
+}
 
-        <div class="letter-block">N</div>
+function createLanguageButton(language) {
+    const isActive = getLanguage() === language.code;
 
-        <div class="letter-block">G</div>
-
-    </div>
-
-    <button class="menu_button">
-
-        ${t("play")}
-
-    </button>
-
-    <button class="menu_button">
-
-        ${t("settings")}
-
-    </button>
-
-    <button class="menu_button">
-
-        ${t("credits")}
-
-    </button>
-
-    <button class="menu_button">
-
-        ${t("help")}
-
-    </button>
-
-    <div class="languages">
-
-        <img 
-
-            class="flag ${getLanguage() === "pt-BR" ? "active" : ""}"
-
-            src="assets/sprites/flags/br.svg"
-
-            data-language="pt-BR"
-
-        >   
-
-        <img 
-
-            class="flag ${getLanguage() === "en-US" ? "active" : ""}"
-
-            src="assets/sprites/flags/us.svg"
-
-            data-language="en-US"
-
+    return `
+        <img
+            class="flag ${isActive ? "active" : ""}"
+            src="assets/sprites/flags/${language.flag}.svg"
+            data-language="${language.code}"
+            alt="${language.label}"
         >
+    `;
+}
 
-        <img 
+function setupTitleAnimation(onComplete) {
+    const blocks = [...document.querySelectorAll(".letter-block")];
+    const lastBlock = blocks.at(-1);
+    const title = document.querySelector(".title");
 
-            class="flag ${getLanguage() === "es-ES" ? "active" : ""}"
-
-            src="assets/sprites/flags/es.svg"
-
-            data-language="es-ES"
-
-        >
-
-    </div>
-
-</div> 
-
-`;
-
-document.querySelectorAll(".letter-block")
-.forEach(block => {
-    block.addEventListener("animationend", (event)=>{
-        if(event.animationName === "blockFall" && block === document.querySelector(".letter-block:last-child")){
-            document.querySelector(".title")
-            .classList.add("complete");
+    lastBlock?.addEventListener("animationend", event => {
+        if (event.animationName === "blockFall") {
+            title?.classList.add("complete");
         }
     });
-});
 
-document.querySelectorAll(".languages img").forEach(flag => {
-    flag.onclick = async () => {
-        await loadLanguage(flag.dataset.language);
-        loadMenu();
+    const handleTitleComplete = event => {
+        if (event.animationName !== "lightUp" || event.target !== lastBlock) return;
+
+        title.removeEventListener("animationend", handleTitleComplete);
+        onComplete?.();
     };
-});
 
+    title?.addEventListener("animationend", handleTitleComplete);
+}
+
+function setupLanguageButtons() {
+    document.querySelectorAll(".languages img").forEach(flag => {
+        flag.addEventListener("click", async () => {
+            await loadLanguage(flag.dataset.language);
+            loadMenu();
+        });
+    });
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }

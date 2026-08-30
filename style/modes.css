@@ -1,0 +1,285 @@
+.modes-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    text-transform: uppercase;
+}
+
+.modes-screen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(var(--primary-rgb), .06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(var(--primary-rgb), .06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: linear-gradient(to bottom, transparent, black);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black);
+    pointer-events: none;
+}
+
+.modes-screen h1 {
+    color: var(--primary-color);
+    font-size: clamp(24px, 4vw, 38px);
+    font-weight: 400;
+    z-index: 1;
+}
+
+.mode-menu {
+    width: clamp(230px, 42vw, 340px);
+    display: grid;
+    gap: 10px;
+    z-index: 1;
+}
+
+.mode-menu-button {
+    width: 100%;
+    min-height: 56px;
+    padding: 13px 16px;
+    color: var(--text-color);
+    font-size: clamp(15px, 2vw, 19px);
+    cursor: pointer;
+    background: var(--surface-color);
+    background: color-mix(in srgb, var(--primary-color) 12%, var(--background));
+    border: 2px solid var(--primary-color);
+    transition: transform .25s ease, background-color .25s ease, box-shadow .25s ease;
+}
+
+.mode-menu-button:hover:not(:disabled) {
+    transform: scale(1.04);
+    background: color-mix(in srgb, var(--primary-color) 28%, var(--background));
+    box-shadow: 0 0 16px rgba(var(--primary-rgb), .55);
+}
+
+.mode-menu-button.hidden {
+    display: none;
+}
+
+.separated-button {
+    margin-top: 10px;
+}
+
+.primary-mode-button {
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    white-space: nowrap;
+    box-shadow: 0 0 10px rgba(var(--primary-rgb), .5);
+}
+
+.primary-mode-button strong {
+    color: var(--primary-color);
+    font-weight: 400;
+}
+
+.theme-button strong {
+    color: var(--primary-color);
+    font-weight: 400;
+}
+
+.ranking-button:disabled {
+    color: #777;
+    cursor: not-allowed;
+    background: #242424;
+    border-color: #555;
+    box-shadow: none;
+    filter: grayscale(100%);
+}
+
+.mode-selector-overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .76);
+    overflow-y: auto;
+    z-index: 20;
+}
+
+.mode-selector {
+    width: min(620px, 100%);
+    max-height: calc(100vh - 40px);
+    padding: 28px;
+    overflow-y: auto;
+    text-align: center;
+    background: var(--surface-color);
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 24px rgba(var(--primary-rgb), .35);
+    text-transform: uppercase;
+}
+
+.mode-selector h2 {
+    margin-bottom: 22px;
+    color: var(--primary-color);
+    font-weight: 400;
+}
+
+.mode-selector-list {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.mode-option {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 54px 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 15px;
+    color: var(--text-color);
+    text-align: left;
+    cursor: pointer;
+    background: color-mix(in srgb, var(--primary-color) 7%, var(--background));
+    border: 2px solid rgba(var(--primary-rgb), .35);
+    transition: transform .2s ease, border-color .2s ease, background-color .2s ease;
+}
+
+.mode-option:hover,
+.mode-option.selected {
+    transform: translateX(5px);
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 16%, var(--background));
+}
+
+.mode-option.selected {
+    box-shadow: inset 4px 0 0 var(--primary-color);
+}
+
+.mode-option-icon {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    background: linear-gradient(145deg, var(--primary-color), var(--secondary-color));
+    border: 2px solid var(--primary-color);
+}
+
+.mode-option-content {
+    display: grid;
+    gap: 7px;
+}
+
+.mode-option-content strong {
+    color: var(--primary-color);
+    font-size: 17px;
+    font-weight: 400;
+}
+
+.mode-option-content small {
+    color: var(--muted-text-color);
+    font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+    font-size: 12px;
+    line-height: 1.45;
+    text-transform: none;
+}
+
+.learning-theme-option {
+    display: block;
+    padding: 17px 20px;
+    color: var(--text-color);
+    text-align: center;
+}
+
+.learning-theme-option strong {
+    font-size: 16px;
+    font-weight: 400;
+}
+
+.guest-warning-overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .76);
+    z-index: 20;
+}
+
+.guest-warning-card {
+    width: min(460px, 100%);
+    padding: 30px;
+    text-align: center;
+    background: var(--surface-color);
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 24px rgba(var(--primary-rgb), .35);
+}
+
+.guest-warning-card h2 {
+    margin-bottom: 14px;
+    color: var(--primary-color);
+    font-weight: 400;
+}
+
+.guest-warning-card p {
+    margin-bottom: 24px;
+    color: var(--muted-text-color);
+    font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+    line-height: 1.6;
+    text-transform: none;
+}
+
+.guest-warning-actions {
+    display: grid;
+    gap: 12px;
+}
+
+.guest-warning-actions .menu_button {
+    width: 100%;
+}
+
+@media (max-width: 520px) {
+    .modes-screen {
+        gap: 25px;
+    }
+
+    .mode-selector-overlay {
+        padding: 8px;
+    }
+
+    .mode-selector {
+        max-height: calc(100vh - 16px);
+        padding: 16px;
+    }
+
+    .mode-selector h2 {
+        margin-bottom: 14px;
+        font-size: 20px;
+    }
+
+    .mode-selector-list {
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .mode-option {
+        grid-template-columns: 42px 1fr;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .mode-option-icon {
+        width: 42px;
+        height: 42px;
+        font-size: 16px;
+    }
+
+    .mode-option-content strong {
+        font-size: 14px;
+    }
+
+    .mode-option-content small {
+        font-size: 11px;
+    }
+}

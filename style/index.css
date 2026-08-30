@@ -1,34 +1,158 @@
+@font-face {
+    font-family: "pixel";
+    src: url("../assets/fonts/Square.ttf");
+}
+
+:root,
+:root[data-theme="light-red"] {
+    --font-pixel: "pixel";
+    --background: #260000;
+    --primary-color: #ff2020;
+    --primary-rgb: 255, 32, 32;
+    --secondary-color: #a00000;
+    --surface-color: #3a0505;
+    --text-color: #ffffff;
+    --muted-text-color: #d8baba;
+}
+
+:root[data-theme="cyan-blue"] {
+    --background: #00191f;
+    --primary-color: #22d3ee;
+    --primary-rgb: 34, 211, 238;
+    --secondary-color: #087b91;
+    --surface-color: #06242b;
+    --text-color: #ffffff;
+    --muted-text-color: #b7dce3;
+}
+
+:root[data-theme="dark-blue"] {
+    --background: #020817;
+    --primary-color: #2563eb;
+    --primary-rgb: 37, 99, 235;
+    --secondary-color: #172554;
+    --surface-color: #09142e;
+    --text-color: #ffffff;
+    --muted-text-color: #bac7e5;
+}
+
+:root[data-theme="light-green"] {
+    --background: #001b0d;
+    --primary-color: #35e878;
+    --primary-rgb: 53, 232, 120;
+    --secondary-color: #086b32;
+    --surface-color: #062713;
+    --text-color: #ffffff;
+    --muted-text-color: #b9d9c5;
+}
+
+:root[data-theme="dark-green"] {
+    --background: #001109;
+    --primary-color: #15803d;
+    --primary-rgb: 21, 128, 61;
+    --secondary-color: #064e28;
+    --surface-color: #061d10;
+    --text-color: #ffffff;
+    --muted-text-color: #b6d0c0;
+}
+
+:root[data-theme="dark-red"] {
+    --background: #190000;
+    --primary-color: #c41414;
+    --primary-rgb: 196, 20, 20;
+    --secondary-color: #650000;
+    --surface-color: #2c0303;
+    --text-color: #ffffff;
+    --muted-text-color: #d5b7b7;
+}
+
+:root[data-theme="light-pink"] {
+    --background: #210815;
+    --primary-color: #f9a8d4;
+    --primary-rgb: 249, 168, 212;
+    --secondary-color: #be185d;
+    --surface-color: #351124;
+    --text-color: #ffffff;
+    --muted-text-color: #f0c9dd;
+}
+
+:root[data-theme="magenta-pink"] {
+    --background: #20001b;
+    --primary-color: #ec4899;
+    --primary-rgb: 236, 72, 153;
+    --secondary-color: #9d174d;
+    --surface-color: #35072a;
+    --text-color: #ffffff;
+    --muted-text-color: #e8bad3;
+}
+
+:root[data-theme="purple"] {
+    --background: #13051f;
+    --primary-color: #a855f7;
+    --primary-rgb: 168, 85, 247;
+    --secondary-color: #581c87;
+    --surface-color: #241035;
+    --text-color: #ffffff;
+    --muted-text-color: #d8c0eb;
+}
+
+:root[data-theme="yellow"] {
+    --background: #282000;
+    --primary-color: #ffdc00;
+    --primary-rgb: 255, 220, 0;
+    --secondary-color: #b88900;
+    --surface-color: #3b3000;
+    --text-color: #ffffff;
+    --muted-text-color: #e9dfb0;
+}
+
+:root[data-theme="orange"] {
+    --background: #281000;
+    --primary-color: #ff7900;
+    --primary-rgb: 255, 121, 0;
+    --secondary-color: #b23c00;
+    --surface-color: #3b1900;
+    --text-color: #ffffff;
+    --muted-text-color: #e1ccb4;
+}
+
+:root[data-theme="silver-gray"] {
+    --background: #15181c;
+    --primary-color: #aeb7c2;
+    --primary-rgb: 174, 183, 194;
+    --secondary-color: #59626d;
+    --surface-color: #252b32;
+    --text-color: #ffffff;
+    --muted-text-color: #c8cdd3;
+}
+
 * {
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-    width:100vw;
-    height:100vh;
-    overflow:hidden;
-    background:var(--background);
-    color:white;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--background);
+    color: var(--text-color);
+    font-family: var(--font-pixel);
+    transition: background-color .3s ease, color .3s ease;
+}
+
+button,
+input {
+    font-family: inherit;
+    color: inherit;
+}
+
+button {
+    font-weight: 400;
+    text-transform: uppercase;
 }
 
 #app {
-    width:100%;
-    height:100%;
-}
-
-@font-face {
-    font-family:"pixel";
-    src:url("../assets/fonts/Square.ttf");
-}
-
-:root {
-    --font-pixel:"pixel";
-    --background:rgb(31, 0, 0);
-    --primary-color:#ff0000;
-    --secondary-color:#810000;
-    --background-color:#050505;
-    --text-color:#fff;
-    --button-background:rgba(119, 1, 1, 0.212);
-    --button-hover:rgba(255, 0, 0, 0.3);
+    width: 100%;
+    height: 100%;
 }
