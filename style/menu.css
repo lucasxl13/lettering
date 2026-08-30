@@ -26,7 +26,8 @@
 }
 
 .menu::after,
-.modes-screen::after {
+.modes-screen::after,
+.classic-screen::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -43,7 +44,8 @@
 }
 
 .menu[data-grid-effect="center-out"]::after,
-.modes-screen[data-grid-effect="center-out"]::after {
+.modes-screen[data-grid-effect="center-out"]::after,
+.classic-screen[data-grid-effect="center-out"]::after {
     mask-image:
         radial-gradient(circle, black 0 50%, transparent 51%),
         radial-gradient(circle, black 0 50%, transparent 51%);
@@ -59,13 +61,17 @@
     animation: gridCenterOut 3.8s ease-in-out forwards;
 }
 .menu[data-grid-effect="down"]::after,
-.modes-screen[data-grid-effect="down"]::after { animation: gridDown 3.8s ease-in-out forwards; }
+.modes-screen[data-grid-effect="down"]::after,
+.classic-screen[data-grid-effect="down"]::after { animation: gridDown 3.8s ease-in-out forwards; }
 .menu[data-grid-effect="up"]::after,
-.modes-screen[data-grid-effect="up"]::after { animation: gridUp 3.8s ease-in-out forwards; }
+.modes-screen[data-grid-effect="up"]::after,
+.classic-screen[data-grid-effect="up"]::after { animation: gridUp 3.8s ease-in-out forwards; }
 .menu[data-grid-effect="right"]::after,
-.modes-screen[data-grid-effect="right"]::after { animation: gridRight 3.8s ease-in-out forwards; }
+.modes-screen[data-grid-effect="right"]::after,
+.classic-screen[data-grid-effect="right"]::after { animation: gridRight 3.8s ease-in-out forwards; }
 .menu[data-grid-effect="left"]::after,
-.modes-screen[data-grid-effect="left"]::after { animation: gridLeft 3.8s ease-in-out forwards; }
+.modes-screen[data-grid-effect="left"]::after,
+.classic-screen[data-grid-effect="left"]::after { animation: gridLeft 3.8s ease-in-out forwards; }
 
 @keyframes gridCenterOut {
     0% {
@@ -116,7 +122,8 @@
 
 @media (prefers-reduced-motion: reduce) {
     .menu::after,
-    .modes-screen::after {
+    .modes-screen::after,
+    .classic-screen::after {
         display: none;
     }
 }
