@@ -1,5 +1,5 @@
 import { t } from "../systems/language.js";
-import { login } from "../systems/auth.js";
+import { AuthRequestError, login } from "../systems/auth.js";
 import { registerModal } from "../systems/modal.js";
 
 export function openLoginModal(onLoginSuccess) {
@@ -61,9 +61,19 @@ export function openLoginModal(onLoginSuccess) {
             await login(email, password);
             modal.dismiss();
             onLoginSuccess?.();
-        } catch {
-            message.textContent = t("server_unavailable");
+        } catch (error) {
+            message.textContent = getLoginErrorMessage(error);
             submitButton.disabled = false;
         }
     });
+}
+
+function getLoginErrorMessage(error) {
+    if (!(error instanceof AuthRequestError)) return t("login_unexpected_error");
+
+    if (error.code === "INVALID_CREDENTIALS") return t("login_invalid_credentials");
+    if (error.code === "VALIDATION_ERROR") return t("login_invalid_data");
+    if (error.code === "NETWORK_ERROR") return t("server_unavailable");
+
+    return t("login_unexpected_error");
 }

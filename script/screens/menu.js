@@ -17,7 +17,7 @@ export function loadMenu() {
     const app = document.getElementById("app");
     const session = getSession();
     const userName = session
-        ? session.user?.name || session.user?.email || "Player"
+        ? session.user?.username || session.user?.email || "Player"
         : "";
 
     app.innerHTML = `

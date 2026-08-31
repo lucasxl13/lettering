@@ -1,12 +1,17 @@
+import { API_BASE_URL } from "../config.js";
+
 const SESSION_KEY = "lettering-auth-session";
 
-// TODO(SERVER-INTEGRATION): troque para false quando o servidor de autenticação existir.
-const USE_MOCK_AUTH = true;
-
-// TODO(SERVER-INTEGRATION): coloque aqui a URL real da API.
-const AUTH_API_URL = "https://api.example.com";
-
 let activeSession = null;
+
+export class AuthRequestError extends Error {
+    constructor(code, message, status = 0) {
+        super(message);
+        this.name = "AuthRequestError";
+        this.code = code;
+        this.status = status;
+    }
+}
 
 export function getSession() {
     return activeSession;
@@ -30,26 +35,13 @@ export async function checkSession() {
 
     if (!session?.token) return null;
 
-    if (USE_MOCK_AUTH) {
-        activeSession = session;
-        return session;
-    }
-
     try {
-        // TODO(SERVER-INTEGRATION): ajuste a rota e o formato da resposta da API.
-        const response = await fetch(`${AUTH_API_URL}/auth/session`, {
+        const data = await requestAuth("/auth/me", {
             method: "GET",
             headers: {
                 Authorization: `Bearer ${session.token}`
             }
         });
-
-        if (!response.ok) {
-            clearSession();
-            return null;
-        }
-
-        const data = await response.json();
         const validatedSession = {
             token: session.token,
             user: data.user
@@ -57,28 +49,16 @@ export async function checkSession() {
 
         saveSession(validatedSession);
         return validatedSession;
-    } catch {
-        // Sem resposta do servidor, a sessão não é iniciada.
+    } catch (error) {
+        if (error instanceof AuthRequestError && error.status === 401) {
+            clearSession();
+        }
         return null;
     }
 }
 
 export async function login(email, password) {
-    if (USE_MOCK_AUTH) {
-        const mockSession = {
-            token: "mock-token-front-end",
-            user: {
-                name: email.split("@")[0] || "Player",
-                email
-            }
-        };
-
-        saveSession(mockSession);
-        return mockSession;
-    }
-
-    // TODO(SERVER-INTEGRATION): ajuste a rota e os campos conforme o backend.
-    const response = await fetch(`${AUTH_API_URL}/auth/login`, {
+    const session = await requestAuth("/auth/login", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -86,33 +66,34 @@ export async function login(email, password) {
         body: JSON.stringify({ email, password })
     });
 
-    if (!response.ok) {
-        throw new Error("LOGIN_FAILED");
-    }
-
-    const session = await response.json();
     saveSession(session);
     return session;
 }
 
 export async function logout() {
-    const session = getSavedSession();
+    clearSession();
+}
 
-    if (!USE_MOCK_AUTH && session?.token) {
-        try {
-            // TODO(SERVER-INTEGRATION): ajuste a rota de encerramento da sessão.
-            await fetch(`${AUTH_API_URL}/auth/logout`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${session.token}`
-                }
-            });
-        } catch {
-            // A sessão local é removida mesmo se o servidor estiver indisponível.
-        }
+async function requestAuth(path, options) {
+    let response;
+
+    try {
+        response = await fetch(`${API_BASE_URL}${path}`, options);
+    } catch {
+        throw new AuthRequestError("NETWORK_ERROR", "Could not connect to the server");
     }
 
-    clearSession();
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+        throw new AuthRequestError(
+            data?.error?.code || "AUTH_REQUEST_FAILED",
+            data?.error?.message || "Authentication request failed",
+            response.status
+        );
+    }
+
+    return data;
 }
 
 function saveSession(session) {
