@@ -1,5 +1,17 @@
 import { getLanguage, t } from "../systems/language.js";
 import { startGridEffects } from "../systems/grid-effects.js";
+import { getSession } from "../systems/auth.js";
+import { ApiRequestError } from "../api/apiClient.js";
+import {
+    getMatches,
+    getMatchState,
+    postLeaveMatch,
+    postMatch,
+    postMatchPiece,
+    postConfirmMatchWord,
+    postPauseMatch,
+    postResumeMatch
+} from "../api/matchesApi.js";
 
 const BOARD_ROWS = 10;
 const BOARD_COLUMNS = 9;
@@ -14,20 +26,45 @@ const LETTER_WEIGHTS = {
 
 export async function loadClassic(onBack) {
     const app = document.getElementById("app");
-    const dictionary = await loadDictionary();
-    let currentBatch = createLetterBatch();
+    const authenticated = Boolean(getSession()?.token);
+    let initialSnapshot = null;
+
+    if (authenticated) {
+        try {
+            initialSnapshot = await loadOrCreateAuthenticatedMatch();
+        } catch (error) {
+            window.alert(getGameRequestError(error));
+            onBack?.();
+            return;
+        }
+    }
+
+    const dictionary = authenticated ? [] : await loadDictionary();
+    let currentBatch = authenticated
+        ? initialSnapshot.match.letterOptions
+        : createLetterBatch();
     const board = Array.from(
         { length: BOARD_ROWS },
         () => Array(BOARD_COLUMNS).fill(null)
     );
+    if (authenticated) fillBoardFromCells(board, initialSnapshot.match.board.cells);
     const activeBlock = { row: 0, column: Math.floor(BOARD_COLUMNS / 2) };
     let selectedLetterIndex = 0;
-    let elapsedSeconds = 0;
-    let lives = 3;
-    let score = 0;
-    let pendingWord = null;
-    const foundWords = [];
-    let paused = false;
+    let elapsedSeconds = authenticated
+        ? Math.floor(initialSnapshot.match.player.gameTimeMs / 1000)
+        : 0;
+    let lives = authenticated ? initialSnapshot.match.player.livesRemaining : 3;
+    let score = authenticated ? initialSnapshot.match.player.score : 0;
+    let pendingWord = authenticated && initialSnapshot.match.pendingWord
+        ? normalizeServerWord(initialSnapshot.match.pendingWord)
+        : null;
+    const foundWords = authenticated
+        ? initialSnapshot.match.foundWords.map(normalizeServerWord)
+        : [];
+    let paused = authenticated && initialSnapshot.match.player.status === "paused";
+    let requestPending = false;
+    const matchId = authenticated ? initialSnapshot.match.id : null;
+    let boardVersion = authenticated ? initialSnapshot.match.board.version : 0;
 
     app.innerHTML = `
         <main class="classic-screen">
@@ -36,17 +73,17 @@ export async function loadClassic(onBack) {
                     <header class="board-header">
                         <div class="board-stat">
                             <span>${t("score")}</span>
-                            <strong id="score">0</strong>
+                            <strong id="score">${score}</strong>
                         </div>
 
                         <div class="board-lives" aria-label="${t("lives")}">
                             <span>${t("lives")}:</span>
-                            <strong id="lives-count">3</strong>
+                            <strong id="lives-count">${lives}</strong>
                         </div>
 
                         <div class="board-stat board-time">
                             <span>${t("elapsed_time")}</span>
-                            <strong id="elapsed-time">00:00</strong>
+                            <strong id="elapsed-time">${formatTime(elapsedSeconds)}</strong>
                         </div>
 
                         <button
@@ -123,6 +160,7 @@ export async function loadClassic(onBack) {
     }
 
     function selectNextLetter() {
+        if (requestPending || currentBatch.length === 0) return;
         selectedLetterIndex = (selectedLetterIndex + 1) % PIECE_SIZE;
         renderCurrentBatch();
         renderBoard();
@@ -133,7 +171,9 @@ export async function loadClassic(onBack) {
             const row = Math.floor(index / BOARD_COLUMNS);
             const column = index % BOARD_COLUMNS;
             const lockedLetter = board[row][column];
-            const isFalling = row === activeBlock.row && column === activeBlock.column;
+            const isFalling = currentBatch.length > 0
+                && row === activeBlock.row
+                && column === activeBlock.column;
 
             cell.classList.toggle("locked", Boolean(lockedLetter));
             cell.classList.toggle("falling", isFalling);
@@ -142,7 +182,7 @@ export async function loadClassic(onBack) {
                 pendingWord?.cells.includes(index) ?? false
             );
             cell.textContent = isFalling
-                ? currentBatch[selectedLetterIndex]
+                ? getOptionLetter(currentBatch[selectedLetterIndex])
                 : lockedLetter ?? "";
         });
     }
@@ -156,6 +196,7 @@ export async function loadClassic(onBack) {
     }
 
     function moveHorizontally(direction) {
+        if (requestPending) return;
         const nextColumn = activeBlock.column + direction;
         if (!canMove(activeBlock.row, nextColumn)) return;
 
@@ -163,8 +204,8 @@ export async function loadClassic(onBack) {
         renderBoard();
     }
 
-    function dropBlock() {
-        if (paused) return;
+    async function dropBlock() {
+        if (paused || pendingWord || requestPending || currentBatch.length === 0) return;
 
         const nextRow = activeBlock.row + 1;
 
@@ -174,8 +215,15 @@ export async function loadClassic(onBack) {
             return;
         }
 
+        if (authenticated) {
+            await submitAuthenticatedPiece();
+            return;
+        }
+
         const reachedTop = activeBlock.row === 0;
-        board[activeBlock.row][activeBlock.column] = currentBatch[selectedLetterIndex];
+        board[activeBlock.row][activeBlock.column] = getOptionLetter(
+            currentBatch[selectedLetterIndex]
+        );
         currentBatch = createLetterBatch();
         selectedLetterIndex = 0;
         activeBlock.row = 0;
@@ -191,13 +239,87 @@ export async function loadClassic(onBack) {
         renderBoard();
     }
 
+    async function submitAuthenticatedPiece() {
+        const selectedOption = currentBatch[selectedLetterIndex];
+        if (!selectedOption?.pieceId) return;
+
+        requestPending = true;
+        try {
+            const result = await postMatchPiece(matchId, {
+                pieceId: selectedOption.pieceId,
+                column: activeBlock.column,
+                boardVersion
+            });
+
+            boardVersion = result.boardVersion;
+            fillBoardFromCells(board, result.board.cells);
+            currentBatch = result.letterOptions;
+            selectedLetterIndex = 0;
+            activeBlock.row = 0;
+            score = result.currentScore;
+            lives = result.livesRemaining;
+
+            pendingWord = result.foundWord
+                ? normalizeServerWord(result.foundWord)
+                : null;
+
+            scoreDisplay.textContent = String(score);
+            updateLivesDisplay(livesDisplay, lives);
+            foundWordsCount.textContent = String(foundWords.length);
+            renderCurrentBatch();
+            renderFoundWords();
+            renderBoard();
+
+            if (result.gameOver) showGameOver();
+        } catch (error) {
+            if (error instanceof ApiRequestError && error.code === "STALE_BOARD_VERSION") {
+                try {
+                    const snapshot = await getMatchState(matchId);
+                    applyAuthenticatedSnapshot(snapshot);
+                } catch (syncError) {
+                    showMatchConnectionError(syncError);
+                }
+            } else if (error instanceof ApiRequestError && error.code === "MATCH_PAUSED") {
+                paused = true;
+            } else {
+                showMatchConnectionError(error);
+            }
+        } finally {
+            requestPending = false;
+        }
+    }
+
+    function applyAuthenticatedSnapshot(snapshot) {
+        boardVersion = snapshot.match.board.version;
+        fillBoardFromCells(board, snapshot.match.board.cells);
+        currentBatch = snapshot.match.letterOptions;
+        selectedLetterIndex = 0;
+        activeBlock.row = 0;
+        score = snapshot.match.player.score;
+        lives = snapshot.match.player.livesRemaining;
+        elapsedSeconds = Math.floor(snapshot.match.player.gameTimeMs / 1000);
+        paused = snapshot.match.player.status === "paused";
+        pendingWord = snapshot.match.pendingWord
+            ? normalizeServerWord(snapshot.match.pendingWord)
+            : null;
+        foundWords.splice(
+            0,
+            foundWords.length,
+            ...snapshot.match.foundWords.map(normalizeServerWord)
+        );
+
+        scoreDisplay.textContent = String(score);
+        timeDisplay.textContent = formatTime(elapsedSeconds);
+        updateLivesDisplay(livesDisplay, lives);
+        foundWordsCount.textContent = String(foundWords.length);
+        renderCurrentBatch();
+        renderFoundWords();
+        renderBoard();
+    }
+
     function loseLife() {
         lives -= 1;
-        livesDisplay.textContent = String(lives);
-        livesDisplay.parentElement.setAttribute(
-            "aria-label",
-            `${t("lives")}: ${lives}`
-        );
+        updateLivesDisplay(livesDisplay, lives);
 
         board.forEach(row => row.fill(null));
         pendingWord = null;
@@ -212,6 +334,11 @@ export async function loadClassic(onBack) {
         const key = event.key.toLowerCase();
 
         if (event.key === "Escape") {
+            if (document.querySelector(".match-error-overlay")) {
+                event.preventDefault();
+                return;
+            }
+
             const pauseOverlay = document.querySelector(".pause-overlay");
 
             if (pauseOverlay) {
@@ -248,8 +375,13 @@ export async function loadClassic(onBack) {
         }
     }
 
-    function confirmPendingWord() {
+    async function confirmPendingWord() {
         if (!pendingWord || paused) return;
+
+        if (authenticated) {
+            await confirmAuthenticatedWord();
+            return;
+        }
 
         const points = pendingWord.word.length
             * (pendingWord.direction === "horizontal" ? 10 : 50);
@@ -273,7 +405,44 @@ export async function loadClassic(onBack) {
         renderBoard();
     }
 
+    async function confirmAuthenticatedWord() {
+        if (requestPending) return;
+        requestPending = true;
+
+        try {
+            const result = await postConfirmMatchWord(matchId, boardVersion);
+            boardVersion = result.boardVersion;
+            fillBoardFromCells(board, result.board.cells);
+            score = result.currentScore;
+            foundWords.unshift(normalizeServerWord(result.confirmedWord));
+            pendingWord = null;
+
+            scoreDisplay.textContent = String(score);
+            foundWordsCount.textContent = String(foundWords.length);
+            renderFoundWords();
+            renderBoard();
+        } catch (error) {
+            if (error instanceof ApiRequestError && error.code === "STALE_BOARD_VERSION") {
+                try {
+                    const snapshot = await getMatchState(matchId);
+                    applyAuthenticatedSnapshot(snapshot);
+                } catch (syncError) {
+                    showMatchConnectionError(syncError);
+                }
+            } else {
+                showMatchConnectionError(error);
+            }
+        } finally {
+            requestPending = false;
+        }
+    }
+
     function renderFoundWords() {
+        if (foundWords.length === 0) {
+            foundWordsList.innerHTML = `<p>${t("no_words_found")}</p>`;
+            return;
+        }
+
         foundWordsList.innerHTML = foundWords.map(item => `
             <article class="found-word-item">
                 <div>
@@ -285,8 +454,67 @@ export async function loadClassic(onBack) {
         `).join("");
     }
 
-    function openPauseMenu() {
+    function showMatchConnectionError(error) {
+        if (document.querySelector(".match-error-overlay")) return;
         paused = true;
+
+        const overlay = document.createElement("div");
+        overlay.className = "pause-overlay match-error-overlay";
+        overlay.innerHTML = `
+            <section class="pause-menu" role="alertdialog" aria-modal="true" aria-labelledby="match-error-title">
+                <h2 id="match-error-title">${t("connection_problem")}</h2>
+                <p class="match-error-message"></p>
+                <button class="pause-button" id="retry-match">${t("retry_connection")}</button>
+                <button class="pause-button" id="leave-failed-match">${t("leave_game")}</button>
+            </section>
+        `;
+        overlay.querySelector(".match-error-message").textContent = getGameRequestError(error);
+        document.body.appendChild(overlay);
+
+        overlay.querySelector("#retry-match").addEventListener("click", async event => {
+            const button = event.currentTarget;
+            button.disabled = true;
+
+            try {
+                let snapshot = await getMatchState(matchId);
+                if (snapshot.match.player.status === "paused") {
+                    snapshot = await postResumeMatch(matchId);
+                }
+
+                applyAuthenticatedSnapshot(snapshot);
+                overlay.remove();
+
+                if (snapshot.match.player.status === "game_over") showGameOver();
+            } catch (retryError) {
+                overlay.querySelector(".match-error-message").textContent =
+                    getGameRequestError(retryError);
+                button.disabled = false;
+            }
+        });
+
+        overlay.querySelector("#leave-failed-match").addEventListener("click", async () => {
+            stopGame();
+            await safelyLeaveMatch(matchId);
+            overlay.remove();
+            onBack?.();
+        });
+    }
+
+    async function openPauseMenu() {
+        if (requestPending || document.querySelector(".pause-overlay")) return;
+        paused = true;
+
+        if (authenticated) {
+            try {
+                const snapshot = await postPauseMatch(matchId);
+                elapsedSeconds = Math.floor(snapshot.match.player.gameTimeMs / 1000);
+                timeDisplay.textContent = formatTime(elapsedSeconds);
+            } catch (error) {
+                paused = false;
+                window.alert(getGameRequestError(error));
+                return;
+            }
+        }
 
         const overlay = document.createElement("div");
         overlay.className = "pause-overlay";
@@ -301,24 +529,36 @@ export async function loadClassic(onBack) {
 
         document.body.appendChild(overlay);
 
-        overlay.querySelector("#resume-game").addEventListener("click", () => {
-            closePauseMenu(overlay);
+        overlay.querySelector("#resume-game").addEventListener("click", async () => {
+            await closePauseMenu(overlay);
         });
 
-        overlay.querySelector("#restart-game").addEventListener("click", () => {
+        overlay.querySelector("#restart-game").addEventListener("click", async () => {
             stopGame();
+            if (authenticated) await safelyLeaveMatch(matchId);
             overlay.remove();
             loadClassic(onBack);
         });
 
-        overlay.querySelector("#leave-game").addEventListener("click", () => {
+        overlay.querySelector("#leave-game").addEventListener("click", async () => {
             stopGame();
+            if (authenticated) await safelyLeaveMatch(matchId);
             overlay.remove();
             onBack?.();
         });
     }
 
-    function closePauseMenu(overlay) {
+    async function closePauseMenu(overlay) {
+        if (authenticated) {
+            try {
+                const snapshot = await postResumeMatch(matchId);
+                elapsedSeconds = Math.floor(snapshot.match.player.gameTimeMs / 1000);
+                timeDisplay.textContent = formatTime(elapsedSeconds);
+            } catch (error) {
+                window.alert(getGameRequestError(error));
+                return;
+            }
+        }
         overlay.remove();
         paused = false;
     }
@@ -357,6 +597,8 @@ export async function loadClassic(onBack) {
 
     document.addEventListener("keydown", handleKeyboard);
     document.getElementById("pause-game").addEventListener("click", openPauseMenu);
+    foundWordsCount.textContent = String(foundWords.length);
+    if (foundWords.length > 0) renderFoundWords();
     renderBoard();
     startGridEffects(screen);
 
@@ -444,16 +686,105 @@ function shuffle(letters) {
 }
 
 function createCurrentBatch(letters, selectedIndex) {
-    return letters.map((letter, index) => `
+    return letters.map((option, index) => `
         <button
             class="current-letter ${index === selectedIndex ? "active" : ""}"
             type="button"
             data-letter-index="${index}"
             aria-pressed="${index === selectedIndex}"
         >
-            ${letter}
+            ${getOptionLetter(option)}
         </button>
     `).join("");
+}
+
+function getOptionLetter(option) {
+    if (typeof option === "string") return option;
+    return option?.letter ?? "";
+}
+
+function fillBoardFromCells(board, cells = []) {
+    board.forEach(row => row.fill(null));
+
+    cells.forEach(cell => {
+        const row = Number(cell.row);
+        const column = Number(cell.column);
+
+        if (!Number.isInteger(row) || !Number.isInteger(column)) return;
+        if (row < 0 || row >= BOARD_ROWS) return;
+        if (column < 0 || column >= BOARD_COLUMNS) return;
+
+        board[row][column] = cell.letter;
+    });
+}
+
+function updateLivesDisplay(element, lives) {
+    element.textContent = String(lives);
+    element.parentElement?.setAttribute("aria-label", `${t("lives")}: ${lives}`);
+}
+
+function normalizeServerWord(item) {
+    const word = String(item.word ?? item.formedWord ?? "").toUpperCase();
+    const translations = Array.isArray(item.translations) && item.translations.length > 0
+        ? item.translations
+        : [word];
+
+    return {
+        word,
+        points: Number(item.pointsEarned ?? 0),
+        direction: item.direction ?? "horizontal",
+        cells: Array.isArray(item.cells)
+            ? item.cells.map(cell => cell.row * BOARD_COLUMNS + cell.column)
+            : [],
+        entry: {
+            word,
+            translations: {
+                "pt-BR": translations,
+                "en-US": [word],
+                "es-ES": translations
+            }
+        }
+    };
+}
+
+async function loadOrCreateAuthenticatedMatch() {
+    try {
+        return await postMatch();
+    } catch (error) {
+        if (!(error instanceof ApiRequestError) || error.code !== "ACTIVE_MATCH_EXISTS") {
+            throw error;
+        }
+
+        const history = await getMatches(50, 0);
+        const activeMatch = history.items.find(item =>
+            ["in_progress", "waiting"].includes(item.matchStatus)
+            && ["playing", "paused"].includes(item.playerStatus)
+        );
+
+        if (!activeMatch) throw error;
+        if (activeMatch.playerStatus === "paused") {
+            return postResumeMatch(activeMatch.id);
+        }
+
+        return getMatchState(activeMatch.id);
+    }
+}
+
+async function safelyLeaveMatch(matchId) {
+    try {
+        await postLeaveMatch(matchId);
+    } catch (error) {
+        console.error("Could not leave the authenticated match", error);
+    }
+}
+
+function getGameRequestError(error) {
+    if (!(error instanceof ApiRequestError)) return t("game_request_error");
+    if (error.code === "NETWORK_ERROR") return t("server_unavailable");
+    if (error.code === "ACTIVE_MATCH_EXISTS") return t("active_match_error");
+    if (error.code === "STALE_BOARD_VERSION") return t("stale_match_error");
+
+    return error.message || t("game_request_error");
 }
 
 function findBestWord(board, dictionary) {

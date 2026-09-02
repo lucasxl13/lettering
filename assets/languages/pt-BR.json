@@ -70,5 +70,10 @@
     "leave_game": "Sair da partida",
     "lives": "Vidas",
     "game_over": "Game Over",
-    "pause_game": "Pausar partida"
+    "pause_game": "Pausar partida",
+    "game_request_error": "Não foi possível atualizar a partida. Tente novamente.",
+    "active_match_error": "Já existe uma partida em andamento.",
+    "stale_match_error": "A partida foi atualizada em outro lugar. O tabuleiro foi sincronizado.",
+    "connection_problem": "Problema de conexão",
+    "retry_connection": "Tentar novamente"
 }

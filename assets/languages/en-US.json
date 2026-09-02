@@ -70,5 +70,10 @@
     "leave_game": "Leave game",
     "lives": "Lives",
     "game_over": "Game Over",
-    "pause_game": "Pause game"
+    "pause_game": "Pause game",
+    "game_request_error": "The match could not be updated. Please try again.",
+    "active_match_error": "There is already a match in progress.",
+    "stale_match_error": "The match changed elsewhere. The board has been synchronized.",
+    "connection_problem": "Connection problem",
+    "retry_connection": "Try again"
 }
