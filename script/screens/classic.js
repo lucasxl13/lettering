@@ -17,12 +17,6 @@ const BOARD_ROWS = 10;
 const BOARD_COLUMNS = 9;
 const PIECE_SIZE = 4;
 const VOWELS = new Set(["A", "E", "I", "O", "U"]);
-const LETTER_WEIGHTS = {
-    A: 9, B: 4, C: 5, D: 6, E: 10, F: 4, G: 5,
-    H: 6, I: 9, J: 2, K: 3, L: 6, M: 5, N: 8,
-    O: 9, P: 4, Q: 2, R: 8, S: 7, T: 9, U: 6,
-    V: 3, W: 4, X: 2, Y: 4, Z: 2
-};
 
 export async function loadClassic(onBack) {
     const app = document.getElementById("app");
@@ -39,10 +33,12 @@ export async function loadClassic(onBack) {
         }
     }
 
-    const dictionary = authenticated ? [] : await loadDictionary();
+    const [dictionary, letterWeights] = authenticated
+        ? [[], new Map()]
+        : await Promise.all([loadDictionary(), loadLetterWeights()]);
     let currentBatch = authenticated
         ? initialSnapshot.match.letterOptions
-        : createLetterBatch();
+        : createLetterBatch(letterWeights);
     const board = Array.from(
         { length: BOARD_ROWS },
         () => Array(BOARD_COLUMNS).fill(null)
@@ -224,7 +220,7 @@ export async function loadClassic(onBack) {
         board[activeBlock.row][activeBlock.column] = getOptionLetter(
             currentBatch[selectedLetterIndex]
         );
-        currentBatch = createLetterBatch();
+        currentBatch = createLetterBatch(letterWeights);
         selectedLetterIndex = 0;
         activeBlock.row = 0;
 
@@ -383,8 +379,8 @@ export async function loadClassic(onBack) {
             return;
         }
 
-        const points = pendingWord.word.length
-            * (pendingWord.direction === "horizontal" ? 10 : 50);
+        const points = pendingWord.entry.score
+            ?? pendingWord.word.length * 10;
 
         if (pendingWord.direction === "horizontal") {
             board.splice(pendingWord.line, 1);
@@ -629,8 +625,8 @@ function createBoardCells() {
     ).join("");
 }
 
-function createLetterBatch() {
-    const availableLetters = Object.keys(LETTER_WEIGHTS);
+function createLetterBatch(letterWeights) {
+    const availableLetters = [...letterWeights.keys()];
     const availableVowels = availableLetters.filter(letter => VOWELS.has(letter));
     const requiredVowel = availableVowels[
         Math.floor(Math.random() * availableVowels.length)
@@ -639,7 +635,7 @@ function createLetterBatch() {
 
     while (batch.length < PIECE_SIZE) {
         const candidates = availableLetters.filter(letter => !batch.includes(letter));
-        batch.push(pickWeightedLetter(candidates));
+        batch.push(pickWeightedLetter(candidates, letterWeights));
     }
 
     const shuffledBatch = shuffle(batch);
@@ -650,21 +646,21 @@ function createLetterBatch() {
     }
 
     if (new Set(shuffledBatch).size !== PIECE_SIZE) {
-        return createLetterBatch();
+        return createLetterBatch(letterWeights);
     }
 
     return shuffledBatch;
 }
 
-function pickWeightedLetter(letters) {
+function pickWeightedLetter(letters, letterWeights) {
     const totalWeight = letters.reduce(
-        (total, letter) => total + LETTER_WEIGHTS[letter],
+        (total, letter) => total + letterWeights.get(letter),
         0
     );
     let randomWeight = Math.random() * totalWeight;
 
     for (const letter of letters) {
-        randomWeight -= LETTER_WEIGHTS[letter];
+        randomWeight -= letterWeights.get(letter);
         if (randomWeight <= 0) return letter;
     }
 
@@ -725,9 +721,7 @@ function updateLivesDisplay(element, lives) {
 
 function normalizeServerWord(item) {
     const word = String(item.word ?? item.formedWord ?? "").toUpperCase();
-    const translations = Array.isArray(item.translations) && item.translations.length > 0
-        ? item.translations
-        : [word];
+    const translations = normalizeLocalizedLists(item.translations, word);
 
     return {
         word,
@@ -738,11 +732,9 @@ function normalizeServerWord(item) {
             : [],
         entry: {
             word,
-            translations: {
-                "pt-BR": translations,
-                "en-US": [word],
-                "es-ES": translations
-            }
+            translations,
+            description: normalizeLocalizedLists(item.description),
+            score: Number(item.pointsEarned ?? item.score ?? 0)
         }
     };
 }
@@ -842,7 +834,10 @@ function collectLineWords(letters, direction, line, dictionary, candidates) {
 }
 
 function getWordTranslation(entry) {
-    const translation = entry.translations[getLanguage()]
+    const language = getLanguage();
+    if (language === "en-US") return entry.word;
+
+    const translation = entry.translations[language]
         ?? entry.translations["pt-BR"]
         ?? entry.word;
 
@@ -873,6 +868,30 @@ async function loadDictionary(theme = null) {
     }
 }
 
+async function loadLetterWeights() {
+    try {
+        const response = await fetch("script/data/letters.json", {
+            cache: "no-store"
+        });
+        if (!response.ok) throw new Error("Could not load letter weights");
+
+        const data = await response.json();
+        const definitions = Array.isArray(data.letters) ? data.letters : [];
+        const weights = new Map(
+            definitions
+                .filter(item => /^[A-Z]$/.test(item.value) && Number.isInteger(item.weight))
+                .map(item => [item.value, item.weight])
+        );
+
+        if (weights.size !== 26) throw new Error("Invalid letter weights");
+        return weights;
+    } catch {
+        return new Map(
+            [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].map(letter => [letter, 1])
+        );
+    }
+}
+
 function normalizeDictionary(words) {
     const mergedWords = new Map();
 
@@ -882,23 +901,52 @@ function normalizeDictionary(words) {
         if (!mergedWords.has(entry.word)) {
             mergedWords.set(entry.word, {
                 word: entry.word,
-                translations: {}
+                translations: {},
+                description: {},
+                score: Number(entry.score ?? entry.word.length * 10)
             });
         }
 
         const mergedEntry = mergedWords.get(entry.word);
 
-        Object.keys(entry.translations).forEach(language => {
-            const meaning = entry.description?.[language]
-                ?? entry.translations[language];
-            const meanings = mergedEntry.translations[language] ?? [];
-
-            if (!meanings.includes(meaning)) meanings.push(meaning);
-            mergedEntry.translations[language] = meanings;
-        });
+        mergeLocalizedLists(mergedEntry.translations, entry.translations);
+        mergeLocalizedLists(mergedEntry.description, entry.description);
+        mergedEntry.score = Math.max(mergedEntry.score, Number(entry.score ?? 0));
     });
 
     return [...mergedWords.values()];
+}
+
+function normalizeLocalizedLists(values, fallback = null) {
+    if (Array.isArray(values)) {
+        return {
+            "pt-BR": values,
+            "en-US": fallback ? [fallback] : [],
+            "es-ES": values
+        };
+    }
+
+    const normalized = {};
+    Object.entries(values ?? {}).forEach(([language, entries]) => {
+        normalized[language] = Array.isArray(entries) ? entries : [entries];
+    });
+
+    if (fallback && Object.keys(normalized).length === 0) {
+        normalized["en-US"] = [fallback];
+    }
+    return normalized;
+}
+
+function mergeLocalizedLists(target, source) {
+    const normalized = normalizeLocalizedLists(source);
+
+    Object.entries(normalized).forEach(([language, entries]) => {
+        const current = target[language] ?? [];
+        entries.forEach(entry => {
+            if (!current.includes(entry)) current.push(entry);
+        });
+        target[language] = current;
+    });
 }
 
 function formatTime(totalSeconds) {
