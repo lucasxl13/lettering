@@ -1,9 +1,13 @@
 import { requestApi } from "./apiClient.js";
 
-export function postMatch() {
+export function postMatch(options = {}) {
+    const { mode = "classic", theme = null, language = "en-US" } = options;
+    const payload = { mode, language };
+    if (theme) payload.theme = theme;
+
     return requestApi("/matches", {
         method: "POST",
-        body: JSON.stringify({ mode: "classic", language: "en-US" })
+        body: JSON.stringify(payload)
     });
 }
 

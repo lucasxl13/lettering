@@ -61,7 +61,7 @@ export function loadModes(onBack) {
                 </button>
 
                 <button
-                    class="mode-menu-button theme-button ${selectedMode.id === "learning" ? "" : "hidden"}"
+                    class="mode-menu-button theme-button ${selectedMode.id === "classic" ? "hidden" : ""}"
                     id="open-theme-selector"
                 >
                     ${createThemeLabel(selectedTheme)}
@@ -88,12 +88,22 @@ export function loadModes(onBack) {
     const themeButton = document.getElementById("open-theme-selector");
 
     playButton.addEventListener("click", () => {
-        if (selectedMode.id === "classic") {
-            loadClassic(() => loadModes(onBack));
+        if (selectedMode.id === "learning" && !selectedTheme) {
+            openThemeSelector(null, theme => {
+                selectedTheme = theme;
+                themeButton.innerHTML = createThemeLabel(theme);
+                loadClassic(() => loadModes(onBack), {
+                    mode: selectedMode.id,
+                    theme: theme.id
+                });
+            });
             return;
         }
 
-        // TODO(GAME-MODE): implementar as partidas dos modos Aprendizado e Hardcore.
+        loadClassic(() => loadModes(onBack), {
+            mode: selectedMode.id,
+            theme: selectedTheme?.id ?? null
+        });
     });
 
     document.getElementById("open-mode-selector").addEventListener("click", () => {
@@ -101,7 +111,7 @@ export function loadModes(onBack) {
             selectedMode = mode;
             localStorage.setItem(SELECTED_MODE_KEY, mode.id);
             playButton.innerHTML = createPlayLabel(mode);
-            themeButton.classList.toggle("hidden", mode.id !== "learning");
+            themeButton.classList.toggle("hidden", mode.id === "classic");
         });
     });
 

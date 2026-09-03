@@ -18,14 +18,20 @@ const BOARD_COLUMNS = 9;
 const PIECE_SIZE = 4;
 const VOWELS = new Set(["A", "E", "I", "O", "U"]);
 
-export async function loadClassic(onBack) {
+export async function loadClassic(onBack, options = {}) {
     const app = document.getElementById("app");
     const authenticated = Boolean(getSession()?.token);
+    const mode = options.mode ?? "classic";
+    const theme = options.theme ?? null;
     let initialSnapshot = null;
 
     if (authenticated) {
         try {
-            initialSnapshot = await loadOrCreateAuthenticatedMatch();
+            initialSnapshot = await loadOrCreateAuthenticatedMatch({
+                mode,
+                theme,
+                language: "en-US"
+            });
         } catch (error) {
             window.alert(getGameRequestError(error));
             onBack?.();
@@ -35,7 +41,7 @@ export async function loadClassic(onBack) {
 
     const [dictionary, letterWeights] = authenticated
         ? [[], new Map()]
-        : await Promise.all([loadDictionary(), loadLetterWeights()]);
+        : await Promise.all([loadDictionary(theme), loadLetterWeights()]);
     let currentBatch = authenticated
         ? initialSnapshot.match.letterOptions
         : createLetterBatch(letterWeights);
@@ -49,7 +55,8 @@ export async function loadClassic(onBack) {
     let elapsedSeconds = authenticated
         ? Math.floor(initialSnapshot.match.player.gameTimeMs / 1000)
         : 0;
-    let lives = authenticated ? initialSnapshot.match.player.livesRemaining : 3;
+    const initialGuestLives = mode === "hardcore" ? 1 : 3;
+    let lives = authenticated ? initialSnapshot.match.player.livesRemaining : initialGuestLives;
     let score = authenticated ? initialSnapshot.match.player.score : 0;
     let pendingWord = authenticated && initialSnapshot.match.pendingWord
         ? normalizeServerWord(initialSnapshot.match.pendingWord)
@@ -533,7 +540,7 @@ export async function loadClassic(onBack) {
             stopGame();
             if (authenticated) await safelyLeaveMatch(matchId);
             overlay.remove();
-            loadClassic(onBack);
+            loadClassic(onBack, options);
         });
 
         overlay.querySelector("#leave-game").addEventListener("click", async () => {
@@ -576,7 +583,7 @@ export async function loadClassic(onBack) {
 
         overlay.querySelector("#restart-after-game-over").addEventListener("click", () => {
             overlay.remove();
-            loadClassic(onBack);
+            loadClassic(onBack, options);
         });
 
         overlay.querySelector("#leave-after-game-over").addEventListener("click", () => {
@@ -739,9 +746,9 @@ function normalizeServerWord(item) {
     };
 }
 
-async function loadOrCreateAuthenticatedMatch() {
+async function loadOrCreateAuthenticatedMatch(matchOptions = {}) {
     try {
-        return await postMatch();
+        return await postMatch(matchOptions);
     } catch (error) {
         if (!(error instanceof ApiRequestError) || error.code !== "ACTIVE_MATCH_EXISTS") {
             throw error;
