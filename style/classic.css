@@ -1,8 +1,15 @@
 .classic-screen {
+    --board-overhead: 136px;
+    --max-board-height: calc(100dvh - var(--board-overhead));
+    --classic-board-width: clamp(320px, calc(var(--max-board-height) * 0.9), 580px);
     width: 100%;
     height: 100%;
-    padding: 18px;
-    overflow: auto;
+    padding: clamp(8px, 1.8vh, 18px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     position: relative;
@@ -32,9 +39,10 @@
 }
 
 .classic-layout {
-    width: min(1080px, 100%);
+    width: auto;
+    max-width: min(1080px, 100%);
     display: grid;
-    grid-template-columns: minmax(520px, 650px) minmax(290px, 350px);
+    grid-template-columns: var(--classic-board-width) minmax(240px, 320px);
     align-items: stretch;
     justify-content: center;
     gap: 16px;
@@ -44,7 +52,10 @@
 }
 
 .board-area {
+    width: 100%;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .board-header {
@@ -236,9 +247,12 @@
 }
 
 .found-words-panel {
-    min-height: 650px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
     margin-top: 0;
-    padding: 20px;
+    padding: clamp(14px, 2vh, 20px);
     background: color-mix(in srgb, var(--primary-color) 5%, var(--background));
     border: 1px solid rgba(var(--primary-rgb), .3);
 }
@@ -361,30 +375,48 @@
 }
 
 .found-words-list {
-    min-height: 390px;
-    display: grid;
-    align-content: start;
-    justify-items: center;
-    padding-top: 72px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding-top: 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     color: var(--muted-text-color);
     font-size: 14px;
     text-align: center;
 }
 
+.found-words-list p {
+    margin: auto 0;
+    padding: 16px 0;
+}
+
 @media (max-width: 850px) {
+    .classic-screen {
+        display: block;
+        padding: 12px 10px;
+    }
+
     .classic-layout {
-        grid-template-columns: minmax(320px, 560px);
+        width: min(560px, 100%);
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
     }
 
     .found-words-panel {
         grid-column: 1 / -1;
-        min-height: 240px;
+        min-height: 180px;
+        height: auto;
         margin-top: 0;
     }
 
     .found-words-list {
-        min-height: 150px;
-        padding-top: 45px;
+        min-height: 120px;
+        max-height: 220px;
+        padding-top: 15px;
     }
 }
 
@@ -540,31 +572,180 @@
 
 @media (min-width: 851px) and (max-height: 800px) {
     .classic-screen {
-        padding: 10px;
+        --board-overhead: 106px;
+        padding: clamp(6px, 1.2vh, 10px);
     }
 
     .classic-layout {
-        width: min(900px, 100%);
-        grid-template-columns: minmax(430px, 560px) minmax(260px, 310px);
         gap: 12px;
+        grid-template-columns: var(--classic-board-width) minmax(210px, 280px);
     }
 
     .board-header {
-        min-height: 42px;
+        min-height: 38px;
     }
 
-    .current-batch {
-        min-height: 48px;
+    .board-stat {
+        padding: 4px 9px;
+        gap: 6px;
     }
 
-    .current-letter {
-        width: 34px;
-        height: 34px;
+    .board-stat span,
+    .board-lives span {
+        font-size: 10px;
+    }
+
+    .board-stat strong,
+    .board-lives strong {
         font-size: 16px;
     }
 
+    .pause-trigger {
+        width: 38px;
+        min-width: 38px;
+        font-size: 12px;
+    }
+
+    .current-batch {
+        min-height: 44px;
+        padding: 4px;
+        gap: 6px;
+    }
+
+    .current-letter {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+
+    .classic-board {
+        gap: 3px;
+        padding: 4px;
+    }
+
+    .board-cell {
+        font-size: clamp(14px, 2.2vh, 19px);
+    }
+
     .found-words-panel {
-        min-height: 560px;
-        padding: 16px;
+        padding: 12px 14px;
+    }
+
+    .found-words-title h2 {
+        font-size: 16px;
+        margin-bottom: 3px;
+    }
+
+    .found-words-title small {
+        font-size: 12px;
+    }
+
+    .found-words-title > strong {
+        min-width: 34px;
+        height: 34px;
+        font-size: 14px;
+    }
+
+    .found-words-list {
+        padding-top: 10px;
+        font-size: 13px;
+    }
+
+    .found-word-item {
+        padding: 7px 0;
+    }
+}
+
+@media (min-width: 851px) and (max-height: 650px) {
+    .classic-screen {
+        --board-overhead: 88px;
+        padding: 5px;
+    }
+
+    .classic-layout {
+        gap: 8px;
+        grid-template-columns: var(--classic-board-width) minmax(190px, 240px);
+    }
+
+    .board-header {
+        min-height: 34px;
+    }
+
+    .board-stat {
+        padding: 2px 7px;
+        gap: 5px;
+    }
+
+    .board-stat span,
+    .board-lives span {
+        font-size: 9px;
+    }
+
+    .board-stat strong,
+    .board-lives strong {
+        font-size: 14px;
+    }
+
+    .pause-trigger {
+        width: 34px;
+        min-width: 34px;
+        font-size: 11px;
+    }
+
+    .current-batch {
+        min-height: 38px;
+        padding: 2px;
+        gap: 4px;
+    }
+
+    .current-letter {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+    }
+
+    .classic-board {
+        gap: 2px;
+        padding: 3px;
+    }
+
+    .board-cell {
+        font-size: clamp(12px, 2.2vh, 16px);
+    }
+
+    .found-words-panel {
+        padding: 8px 10px;
+    }
+
+    .found-words-title h2 {
+        font-size: 14px;
+        margin-bottom: 2px;
+    }
+
+    .found-words-title small {
+        font-size: 11px;
+    }
+
+    .found-words-title > strong {
+        min-width: 28px;
+        height: 28px;
+        font-size: 13px;
+    }
+
+    .found-words-list {
+        padding-top: 6px;
+        font-size: 12px;
+    }
+
+    .found-word-item {
+        padding: 5px 0;
+    }
+
+    .found-word-item strong {
+        font-size: 13px;
+    }
+
+    .found-word-item small {
+        font-size: 11px;
     }
 }
