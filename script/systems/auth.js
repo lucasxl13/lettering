@@ -5,11 +5,12 @@ const SESSION_KEY = "lettering-auth-session";
 let activeSession = null;
 
 export class AuthRequestError extends Error {
-    constructor(code, message, status = 0) {
+    constructor(code, message, status = 0, details = null) {
         super(message);
         this.name = "AuthRequestError";
         this.code = code;
         this.status = status;
+        this.details = details;
     }
 }
 
@@ -19,7 +20,6 @@ export function getSession() {
 
 function getSavedSession() {
     const savedSession = localStorage.getItem(SESSION_KEY);
-
     if (!savedSession) return null;
 
     try {
@@ -32,27 +32,18 @@ function getSavedSession() {
 
 export async function checkSession() {
     const session = getSavedSession();
-
     if (!session?.token) return null;
 
     try {
         const data = await requestAuth("/auth/me", {
             method: "GET",
-            headers: {
-                Authorization: `Bearer ${session.token}`
-            }
+            headers: { Authorization: `Bearer ${session.token}` }
         });
-        const validatedSession = {
-            token: session.token,
-            user: data.user
-        };
-
+        const validatedSession = { token: session.token, user: data.user };
         saveSession(validatedSession);
         return validatedSession;
     } catch (error) {
-        if (error instanceof AuthRequestError && error.status === 401) {
-            clearSession();
-        }
+        if (error instanceof AuthRequestError && error.status === 401) clearSession();
         return null;
     }
 }
@@ -68,6 +59,29 @@ export async function login(email, password) {
 
     saveSession(session);
     return session;
+}
+
+export async function register(username, email, password) {
+    const session = await requestAuth("/auth/register", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username, email, password })
+    });
+
+    saveSession(session);
+    return session;
+}
+
+export async function checkAvailability(field, value) {
+    return requestAuth("/auth/availability", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ [field]: value })
+    });
 }
 
 export async function logout() {
@@ -89,7 +103,8 @@ async function requestAuth(path, options) {
         throw new AuthRequestError(
             data?.error?.code || "AUTH_REQUEST_FAILED",
             data?.error?.message || "Authentication request failed",
-            response.status
+            response.status,
+            data?.error?.details
         );
     }
 

@@ -1,14 +1,22 @@
 import { requestApi } from "./apiClient.js";
 
 export function postMatch(options = {}) {
-    const { mode = "classic", theme = null, language = "en-US" } = options;
+    const { mode = "classic", theme = null, wordTarget = null, language = "en-US" } = options;
     const payload = { mode, language };
     if (theme) payload.theme = theme;
+    if (wordTarget) payload.wordTarget = wordTarget;
 
     return requestApi("/matches", {
         method: "POST",
         body: JSON.stringify(payload)
     });
+}
+
+export function getRanking({ mode, theme = null, wordTarget = null }) {
+    const parameters = new URLSearchParams({ mode });
+    if (theme) parameters.set("theme", theme);
+    if (wordTarget) parameters.set("wordTarget", String(wordTarget));
+    return requestApi(`/rankings?${parameters}`);
 }
 
 export function getMatches(limit = 20, offset = 0) {

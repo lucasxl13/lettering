@@ -2,6 +2,7 @@ import { t } from "../systems/language.js";
 import { THEMES, getTheme, setTheme } from "../systems/theme.js";
 import { getVolume, setVolume } from "../systems/audio-settings.js";
 import { registerModal } from "../systems/modal.js";
+import { exitFullscreen, isFullscreen, requestMobileFullscreen } from "../systems/fullscreen.js";
 
 export function openSettings() {
     if (document.querySelector(".settings-overlay")) return;
@@ -21,6 +22,12 @@ export function openSettings() {
                 ${createVolumeControl("music", t("background_music"))}
                 ${createVolumeControl("effects", t("sound_effects"))}
             </div>
+
+            <label class="settings-toggle">
+                <span>${t("fullscreen_mode")}</span>
+                <input class="settings-toggle-input" type="checkbox" ${isFullscreen() ? "checked" : ""}>
+                <span class="settings-toggle-track" aria-hidden="true"></span>
+            </label>
 
             <button class="menu_button close-settings">${t("back")}</button>
         </section>
@@ -46,10 +53,23 @@ export function openSettings() {
         });
     });
 
-    overlay.querySelector(".close-settings").addEventListener("click", modal.close);
-    overlay.addEventListener("click", event => {
-        if (event.target === overlay) modal.close();
+    const fullscreenToggle = overlay.querySelector(".settings-toggle-input");
+    const syncFullscreenToggle = () => {
+        fullscreenToggle.checked = isFullscreen();
+    };
+
+    fullscreenToggle.addEventListener("change", async () => {
+        fullscreenToggle.disabled = true;
+        if (fullscreenToggle.checked) await requestMobileFullscreen();
+        else await exitFullscreen();
+        fullscreenToggle.disabled = false;
+        syncFullscreenToggle();
     });
+
+    document.addEventListener("fullscreenchange", syncFullscreenToggle, { signal: modal.signal });
+    document.addEventListener("webkitfullscreenchange", syncFullscreenToggle, { signal: modal.signal });
+
+    overlay.querySelector(".close-settings").addEventListener("click", modal.close);
 }
 
 function createThemeButton(theme) {

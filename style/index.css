@@ -3,9 +3,26 @@
     src: url("../assets/fonts/Square.ttf");
 }
 
+*,
+*::before,
+*::after {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+}
+
 :root,
 :root[data-theme="light-red"] {
-    --font-pixel: "pixel";
+    --font-pixel: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
     --background: #260000;
     --primary-color: #ff2020;
     --primary-rgb: 255, 32, 32;
@@ -132,12 +149,14 @@
 }
 
 body {
-    width: 100vw;
+    width: 100%;
     height: 100vh;
+    height: 100dvh;
+    min-height: 100svh;
     overflow: hidden;
     background: var(--background);
     color: var(--text-color);
-    font-family: var(--font-pixel);
+    font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
     transition: background-color .3s ease, color .3s ease;
 }
 
@@ -155,4 +174,5 @@ button {
 #app {
     width: 100%;
     height: 100%;
+    min-height: 100svh;
 }

@@ -32,7 +32,4 @@ export function openGuestWarning({ onContinue, onLoginSuccess }) {
         window.setTimeout(() => openLoginModal(onLoginSuccess), 100);
     });
 
-    overlay.addEventListener("click", event => {
-        if (event.target === overlay) modal.close();
-    });
 }

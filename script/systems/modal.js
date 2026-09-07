@@ -1,19 +1,30 @@
 export function registerModal(overlay, name) {
     let removed = false;
+    let interactionStartedOnBackdrop = false;
+    const lifecycle = new AbortController();
+    const usesMobileNavigation = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
 
-    history.pushState({ letteringModal: name }, "");
+    if (usesMobileNavigation) {
+        history.pushState({ letteringModal: name }, "");
+    }
 
     const remove = () => {
         if (removed) return;
 
         removed = true;
+        lifecycle.abort();
         overlay.remove();
-        window.removeEventListener("popstate", handleNativeBack);
+        if (usesMobileNavigation) {
+            window.removeEventListener("popstate", handleNativeBack);
+        }
+        overlay.removeEventListener("pointerdown", handleBackdropPointerDown);
+        overlay.removeEventListener("pointercancel", resetBackdropInteraction);
+        overlay.removeEventListener("click", handleBackdropClick);
         document.removeEventListener("keydown", handleEscape);
     };
 
     const close = () => {
-        if (history.state?.letteringModal === name) {
+        if (usesMobileNavigation && history.state?.letteringModal === name) {
             history.back();
         } else {
             remove();
@@ -21,7 +32,7 @@ export function registerModal(overlay, name) {
     };
 
     const dismiss = () => {
-        const ownsHistoryEntry = history.state?.letteringModal === name;
+        const ownsHistoryEntry = usesMobileNavigation && history.state?.letteringModal === name;
         remove();
 
         if (ownsHistoryEntry) history.back();
@@ -35,8 +46,28 @@ export function registerModal(overlay, name) {
         if (event.key === "Escape") close();
     }
 
-    window.addEventListener("popstate", handleNativeBack);
+    function handleBackdropPointerDown(event) {
+        interactionStartedOnBackdrop = event.target === overlay;
+    }
+
+    function resetBackdropInteraction() {
+        interactionStartedOnBackdrop = false;
+    }
+
+    function handleBackdropClick(event) {
+        const isBackdropClick = interactionStartedOnBackdrop && event.target === overlay;
+        interactionStartedOnBackdrop = false;
+
+        if (isBackdropClick) close();
+    }
+
+    if (usesMobileNavigation) {
+        window.addEventListener("popstate", handleNativeBack);
+    }
+    overlay.addEventListener("pointerdown", handleBackdropPointerDown);
+    overlay.addEventListener("pointercancel", resetBackdropInteraction);
+    overlay.addEventListener("click", handleBackdropClick);
     document.addEventListener("keydown", handleEscape);
 
-    return { close, dismiss };
+    return { close, dismiss, signal: lifecycle.signal };
 }

@@ -23,6 +23,7 @@ export async function loadClassic(onBack, options = {}) {
     const authenticated = Boolean(getSession()?.token);
     const mode = options.mode ?? "classic";
     const theme = options.theme ?? null;
+    let wordTarget = mode === "learning" ? Number(options.wordTarget ?? 5) : null;
     let initialSnapshot = null;
 
     if (authenticated) {
@@ -30,8 +31,12 @@ export async function loadClassic(onBack, options = {}) {
             initialSnapshot = await loadOrCreateAuthenticatedMatch({
                 mode,
                 theme,
+                wordTarget,
                 language: "en-US"
             });
+            if (mode === "learning") {
+                wordTarget = Number(initialSnapshot.match.wordTarget ?? wordTarget);
+            }
         } catch (error) {
             window.alert(getGameRequestError(error));
             onBack?.();
@@ -39,18 +44,23 @@ export async function loadClassic(onBack, options = {}) {
         }
     }
 
-    const [dictionary, letterWeights] = authenticated
-        ? [[], new Map()]
-        : await Promise.all([loadDictionary(theme), loadLetterWeights()]);
-    let currentBatch = authenticated
-        ? initialSnapshot.match.letterOptions
-        : createLetterBatch(letterWeights);
+    const [dictionary, letterWeights, thematicDictionary] = await Promise.all([
+        authenticated ? Promise.resolve([]) : loadDictionary(),
+        authenticated ? Promise.resolve(new Map()) : loadLetterWeights(),
+        mode === "learning" ? loadDictionary(theme) : Promise.resolve([])
+    ]);
+    const thematicWords = new Set(thematicDictionary.map(entry => entry.word));
     const board = Array.from(
         { length: BOARD_ROWS },
         () => Array(BOARD_COLUMNS).fill(null)
     );
     if (authenticated) fillBoardFromCells(board, initialSnapshot.match.board.cells);
+    let letterRotationIndex = 0;
+    let currentBatch = authenticated
+        ? initialSnapshot.match.letterOptions
+        : createModeLetterBatch(mode, letterWeights, thematicDictionary, letterRotationIndex++);
     const activeBlock = { row: 0, column: Math.floor(BOARD_COLUMNS / 2) };
+    let horizontalMovement = 0;
     let selectedLetterIndex = 0;
     let elapsedSeconds = authenticated
         ? Math.floor(initialSnapshot.match.player.gameTimeMs / 1000)
@@ -64,8 +74,14 @@ export async function loadClassic(onBack, options = {}) {
     const foundWords = authenticated
         ? initialSnapshot.match.foundWords.map(normalizeServerWord)
         : [];
+    const thematicFoundWords = new Set(
+        foundWords
+            .map(item => item.word)
+            .filter(word => thematicWords.has(word))
+    );
     let paused = authenticated && initialSnapshot.match.player.status === "paused";
     let requestPending = false;
+    let gameEnded = false;
     const matchId = authenticated ? initialSnapshot.match.id : null;
     let boardVersion = authenticated ? initialSnapshot.match.board.version : 0;
 
@@ -120,7 +136,7 @@ export async function loadClassic(onBack, options = {}) {
                             <h2>${t("found_words")}</h2>
                             <small>${t("match_history")}</small>
                         </div>
-                        <strong id="found-words-count">0</strong>
+                        <strong id="found-words-count">${wordTarget ? `0/${wordTarget}` : "0"}</strong>
                     </div>
 
                     <div class="found-words-list" id="found-words-list">
@@ -138,9 +154,17 @@ export async function loadClassic(onBack, options = {}) {
     const foundWordsCount = document.getElementById("found-words-count");
     const foundWordsList = document.getElementById("found-words-list");
     const boardCells = [...document.querySelectorAll(".board-cell")];
+    const boardElement = document.querySelector(".classic-board");
     const currentBatchElement = document.querySelector(".current-batch");
+    let touchStart = null;
+    let touchHoldTimeout = null;
+    let touchDropInterval = null;
+    let touchAccelerationQueued = false;
+    let ignoreNextBoardClick = false;
+    let lastTouchInteraction = 0;
 
     currentBatchElement.addEventListener("click", event => {
+        if (gameEnded) return;
         const button = event.target.closest(".current-letter");
         if (!button) return;
 
@@ -149,7 +173,14 @@ export async function loadClassic(onBack, options = {}) {
         renderBoard();
     });
 
-    document.querySelector(".classic-board").addEventListener("click", event => {
+    boardElement.addEventListener("click", event => {
+        if (Date.now() - lastTouchInteraction < 700) return;
+
+        if (ignoreNextBoardClick) {
+            ignoreNextBoardClick = false;
+            return;
+        }
+
         if (event.target.closest(".word-match")) {
             confirmPendingWord();
             return;
@@ -158,12 +189,106 @@ export async function loadClassic(onBack, options = {}) {
         selectNextLetter();
     });
 
+    boardElement.addEventListener("pointerdown", event => {
+        if (event.pointerType !== "touch" || gameEnded) return;
+        if (touchStart) return;
+        clearTouchDrop();
+        lastTouchInteraction = Date.now();
+        touchStart = {
+            x: event.clientX,
+            y: event.clientY,
+            pointerId: event.pointerId,
+            wordCell: event.target.closest(".word-match"),
+            fallingCell: event.target.closest(".falling"),
+            moved: false,
+            accelerated: false
+        };
+        boardElement.setPointerCapture?.(event.pointerId);
+
+        touchHoldTimeout = window.setTimeout(() => {
+            if (!touchStart) return;
+            touchStart.accelerated = true;
+            touchAccelerationQueued = true;
+            void dropBlock();
+            touchDropInterval = window.setInterval(() => void dropBlock(), 180);
+        }, 280);
+    });
+
+    boardElement.addEventListener("pointermove", event => {
+        if (event.pointerType !== "touch" || touchStart?.pointerId !== event.pointerId) return;
+        if (Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 12) {
+            touchStart.moved = true;
+        }
+    });
+
+    boardElement.addEventListener("pointerup", event => {
+        if (event.pointerType !== "touch" || touchStart?.pointerId !== event.pointerId) return;
+
+        if (gameEnded) {
+            clearTouchDrop();
+            touchStart = null;
+            return;
+        }
+
+        const tappedWord = touchStart.wordCell;
+        const tappedFallingPiece = touchStart.fallingCell;
+        const moved = touchStart.moved;
+        const accelerated = touchStart.accelerated;
+        clearTouchDrop();
+        touchAccelerationQueued = false;
+        touchStart = null;
+        ignoreNextBoardClick = true;
+        window.setTimeout(() => { ignoreNextBoardClick = false; }, 400);
+
+        if (accelerated || moved) return;
+
+        if (tappedWord) {
+            confirmPendingWord();
+            return;
+        }
+
+        if (tappedFallingPiece) {
+            selectNextLetter();
+            return;
+        }
+
+        const bounds = boardElement.getBoundingClientRect();
+        moveHorizontally(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
+    });
+
+    boardElement.addEventListener("pointercancel", () => {
+        clearTouchDrop();
+        touchAccelerationQueued = false;
+        touchStart = null;
+    });
+
+    const stopTouchAcceleration = () => {
+        clearTouchDrop();
+        touchAccelerationQueued = false;
+    };
+    window.addEventListener("pointerup", stopTouchAcceleration, true);
+    window.addEventListener("pointercancel", stopTouchAcceleration, true);
+    window.addEventListener("touchend", stopTouchAcceleration, true);
+    window.addEventListener("touchcancel", stopTouchAcceleration, true);
+    window.addEventListener("blur", stopTouchAcceleration);
+
+    boardElement.addEventListener("contextmenu", event => {
+        event.preventDefault();
+    });
+
+    function clearTouchDrop() {
+        window.clearTimeout(touchHoldTimeout);
+        window.clearInterval(touchDropInterval);
+        touchHoldTimeout = null;
+        touchDropInterval = null;
+    }
+
     function renderCurrentBatch() {
         currentBatchElement.innerHTML = createCurrentBatch(currentBatch, selectedLetterIndex);
     }
 
     function selectNextLetter() {
-        if (requestPending || currentBatch.length === 0) return;
+        if (gameEnded || requestPending || currentBatch.length === 0) return;
         selectedLetterIndex = (selectedLetterIndex + 1) % PIECE_SIZE;
         renderCurrentBatch();
         renderBoard();
@@ -180,6 +305,8 @@ export async function loadClassic(onBack, options = {}) {
 
             cell.classList.toggle("locked", Boolean(lockedLetter));
             cell.classList.toggle("falling", isFalling);
+            cell.classList.toggle("falling-left", isFalling && horizontalMovement < 0);
+            cell.classList.toggle("falling-right", isFalling && horizontalMovement > 0);
             cell.classList.toggle(
                 "word-match",
                 pendingWord?.cells.includes(index) ?? false
@@ -199,16 +326,18 @@ export async function loadClassic(onBack, options = {}) {
     }
 
     function moveHorizontally(direction) {
-        if (requestPending) return;
+        if (gameEnded || requestPending) return;
         const nextColumn = activeBlock.column + direction;
         if (!canMove(activeBlock.row, nextColumn)) return;
 
         activeBlock.column = nextColumn;
+        horizontalMovement = direction;
         renderBoard();
+        horizontalMovement = 0;
     }
 
     async function dropBlock() {
-        if (paused || pendingWord || requestPending || currentBatch.length === 0) return;
+        if (gameEnded || paused || requestPending || currentBatch.length === 0) return;
 
         const nextRow = activeBlock.row + 1;
 
@@ -227,16 +356,27 @@ export async function loadClassic(onBack, options = {}) {
         board[activeBlock.row][activeBlock.column] = getOptionLetter(
             currentBatch[selectedLetterIndex]
         );
-        currentBatch = createLetterBatch(letterWeights);
-        selectedLetterIndex = 0;
-        activeBlock.row = 0;
-
-        renderCurrentBatch();
 
         if (reachedTop) {
             loseLife();
+            if (!gameEnded) {
+                currentBatch = createModeLetterBatch(
+                    mode, letterWeights, thematicDictionary, letterRotationIndex++
+                );
+                selectedLetterIndex = 0;
+                activeBlock.row = 0;
+                renderCurrentBatch();
+                renderBoard();
+            }
             return;
         }
+
+        currentBatch = createModeLetterBatch(
+            mode, letterWeights, thematicDictionary, letterRotationIndex++
+        );
+        selectedLetterIndex = 0;
+        activeBlock.row = 0;
+        renderCurrentBatch();
 
         pendingWord = findBestWord(board, dictionary);
         renderBoard();
@@ -268,7 +408,7 @@ export async function loadClassic(onBack, options = {}) {
 
             scoreDisplay.textContent = String(score);
             updateLivesDisplay(livesDisplay, lives);
-            foundWordsCount.textContent = String(foundWords.length);
+            updateFoundWordsCount();
             renderCurrentBatch();
             renderFoundWords();
             renderBoard();
@@ -289,6 +429,9 @@ export async function loadClassic(onBack, options = {}) {
             }
         } finally {
             requestPending = false;
+            if (touchAccelerationQueued && touchStart && !gameEnded) {
+                void dropBlock();
+            }
         }
     }
 
@@ -310,11 +453,15 @@ export async function loadClassic(onBack, options = {}) {
             foundWords.length,
             ...snapshot.match.foundWords.map(normalizeServerWord)
         );
+        thematicFoundWords.clear();
+        foundWords.forEach(item => {
+            if (thematicWords.has(item.word)) thematicFoundWords.add(item.word);
+        });
 
         scoreDisplay.textContent = String(score);
         timeDisplay.textContent = formatTime(elapsedSeconds);
         updateLivesDisplay(livesDisplay, lives);
-        foundWordsCount.textContent = String(foundWords.length);
+        updateFoundWordsCount();
         renderCurrentBatch();
         renderFoundWords();
         renderBoard();
@@ -379,7 +526,7 @@ export async function loadClassic(onBack, options = {}) {
     }
 
     async function confirmPendingWord() {
-        if (!pendingWord || paused) return;
+        if (gameEnded || !pendingWord || paused) return;
 
         if (authenticated) {
             await confirmAuthenticatedWord();
@@ -399,13 +546,17 @@ export async function loadClassic(onBack, options = {}) {
         }
 
         score += points;
-        foundWords.unshift({ ...pendingWord, points });
+        if (!foundWords.some(item => item.word === pendingWord.word)) {
+            foundWords.unshift({ ...pendingWord, points });
+        }
+        if (thematicWords.has(pendingWord.word)) thematicFoundWords.add(pendingWord.word);
         scoreDisplay.textContent = String(score);
-        foundWordsCount.textContent = String(foundWords.length);
+        updateFoundWordsCount();
         pendingWord = null;
 
         renderFoundWords();
         renderBoard();
+        checkThematicVictory();
     }
 
     async function confirmAuthenticatedWord() {
@@ -417,13 +568,19 @@ export async function loadClassic(onBack, options = {}) {
             boardVersion = result.boardVersion;
             fillBoardFromCells(board, result.board.cells);
             score = result.currentScore;
-            foundWords.unshift(normalizeServerWord(result.confirmedWord));
+            const confirmedWord = normalizeServerWord(result.confirmedWord);
+            if (!foundWords.some(item => item.word === confirmedWord.word)) {
+                foundWords.unshift(confirmedWord);
+            }
+            if (thematicWords.has(confirmedWord.word)) thematicFoundWords.add(confirmedWord.word);
             pendingWord = null;
 
             scoreDisplay.textContent = String(score);
-            foundWordsCount.textContent = String(foundWords.length);
+            updateFoundWordsCount();
             renderFoundWords();
             renderBoard();
+            // Em partidas autenticadas, somente o servidor encerra o objetivo.
+            if (result.completed) showVictory();
         } catch (error) {
             if (error instanceof ApiRequestError && error.code === "STALE_BOARD_VERSION") {
                 try {
@@ -455,6 +612,50 @@ export async function loadClassic(onBack, options = {}) {
                 <span>+${item.points}</span>
             </article>
         `).join("");
+    }
+
+    function updateFoundWordsCount() {
+        foundWordsCount.textContent = wordTarget
+            ? `${Math.min(thematicFoundWords.size, wordTarget)}/${wordTarget}`
+            : String(foundWords.length);
+    }
+
+    function checkThematicVictory() {
+        if (!wordTarget || thematicFoundWords.size < wordTarget || gameEnded) return;
+        showVictory();
+    }
+
+    function showVictory() {
+        gameEnded = true;
+        paused = true;
+        stopGame();
+
+        const overlay = document.createElement("div");
+        overlay.className = "game-over-overlay victory-overlay";
+        overlay.innerHTML = `
+            <section class="game-over-menu victory-menu" role="dialog" aria-modal="true" aria-labelledby="victory-title">
+                <h2 id="victory-title">${t("thematic_victory")}</h2>
+                <p>${t("thematic_victory_message").replace("{count}", String(wordTarget))}</p>
+                <strong class="victory-time">${formatTime(elapsedSeconds)}</strong>
+                <button class="pause-button" id="restart-after-victory">${t("restart")}</button>
+                <button class="pause-button" id="leave-after-victory">${t("leave_game")}</button>
+            </section>
+        `;
+
+        document.body.appendChild(overlay);
+        const finishRequest = Promise.resolve();
+
+        overlay.querySelector("#restart-after-victory").addEventListener("click", async () => {
+            await finishRequest;
+            overlay.remove();
+            loadClassic(onBack, options);
+        });
+
+        overlay.querySelector("#leave-after-victory").addEventListener("click", async () => {
+            await finishRequest;
+            overlay.remove();
+            onBack?.();
+        });
     }
 
     function showMatchConnectionError(error) {
@@ -567,6 +768,9 @@ export async function loadClassic(onBack, options = {}) {
     }
 
     function showGameOver() {
+        if (gameEnded) return;
+        gameEnded = true;
+        paused = true;
         stopGame();
 
         const overlay = document.createElement("div");
@@ -595,12 +799,18 @@ export async function loadClassic(onBack, options = {}) {
     function stopGame() {
         window.clearInterval(timer);
         window.clearInterval(gravity);
+        clearTouchDrop();
+        window.removeEventListener("pointerup", stopTouchAcceleration, true);
+        window.removeEventListener("pointercancel", stopTouchAcceleration, true);
+        window.removeEventListener("touchend", stopTouchAcceleration, true);
+        window.removeEventListener("touchcancel", stopTouchAcceleration, true);
+        window.removeEventListener("blur", stopTouchAcceleration);
         document.removeEventListener("keydown", handleKeyboard);
     }
 
     document.addEventListener("keydown", handleKeyboard);
     document.getElementById("pause-game").addEventListener("click", openPauseMenu);
-    foundWordsCount.textContent = String(foundWords.length);
+    updateFoundWordsCount();
     if (foundWords.length > 0) renderFoundWords();
     renderBoard();
     startGridEffects(screen);
@@ -630,6 +840,60 @@ function createBoardCells() {
         { length: BOARD_ROWS * BOARD_COLUMNS },
         () => '<div class="board-cell" role="gridcell"></div>'
     ).join("");
+}
+
+function createModeLetterBatch(mode, letterWeights, thematicDictionary, rotationIndex) {
+    if (mode === "hardcore") return createLetterBatch(letterWeights);
+    if (thematicDictionary.length === 0) {
+        return createRotatingLetterBatch(letterWeights, rotationIndex);
+    }
+
+    const guide = thematicDictionary[
+        Math.floor(Math.random() * thematicDictionary.length)
+    ].word;
+    const usefulLetters = shuffle([...new Set(guide)]);
+    const rotationLetter = [...letterWeights.keys()][rotationIndex % letterWeights.size];
+    const batch = [rotationLetter];
+    usefulLetters.forEach(letter => {
+        if (batch.length < PIECE_SIZE && !batch.includes(letter)) batch.push(letter);
+    });
+    const guideVowel = [...guide].find(letter => VOWELS.has(letter));
+
+    if (!batch.some(letter => VOWELS.has(letter)) && guideVowel && !batch.includes(guideVowel)) {
+        if (batch.length === PIECE_SIZE) batch.pop();
+        batch.push(guideVowel);
+    }
+
+    const availableLetters = [...letterWeights.keys()];
+    while (batch.length < PIECE_SIZE) {
+        const candidates = availableLetters.filter(letter => !batch.includes(letter));
+        batch.push(pickWeightedLetter(candidates, letterWeights));
+    }
+
+    if (!batch.some(letter => VOWELS.has(letter))) {
+        const vowels = availableLetters.filter(letter => VOWELS.has(letter));
+        batch[batch.length - 1] = vowels[Math.floor(Math.random() * vowels.length)];
+    }
+
+    return shuffle(batch);
+}
+
+function createRotatingLetterBatch(letterWeights, rotationIndex) {
+    const availableLetters = [...letterWeights.keys()];
+    const rotationLetter = availableLetters[rotationIndex % availableLetters.length];
+    const batch = [rotationLetter];
+
+    if (!VOWELS.has(rotationLetter)) {
+        const vowels = availableLetters.filter(letter => VOWELS.has(letter));
+        batch.push(vowels[Math.floor(Math.random() * vowels.length)]);
+    }
+
+    while (batch.length < PIECE_SIZE) {
+        const candidates = availableLetters.filter(letter => !batch.includes(letter));
+        batch.push(pickWeightedLetter(candidates, letterWeights));
+    }
+
+    return shuffle(batch);
 }
 
 function createLetterBatch(letterWeights) {
@@ -817,8 +1081,7 @@ function collectLineWords(letters, direction, line, dictionary, candidates) {
             const section = letters.slice(start, start + word.length);
             if (section.some(letter => !letter)) continue;
             const forwardText = section.join("");
-            const backwardText = [...section].reverse().join("");
-            if (forwardText !== word && backwardText !== word) continue;
+            if (forwardText !== word) continue;
 
             const cells = Array.from({ length: word.length }, (_, offset) => {
                 const position = start + offset;
@@ -833,7 +1096,7 @@ function collectLineWords(letters, direction, line, dictionary, candidates) {
                 direction,
                 line,
                 cells,
-                reading: forwardText === word ? "forward" : "backward",
+                reading: "forward",
                 multiplier: direction === "horizontal" ? 10 : 50
             });
         }

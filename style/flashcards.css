@@ -1,0 +1,120 @@
+.fc-screen { height: 100%; min-height: 100svh; overflow: hidden; padding: clamp(10px, 2.5vw, 28px); max-width: 960px; margin: auto; display: block; font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; }
+.fc-screen button { cursor: pointer; border: 1px solid var(--primary-color); border-radius: 8px; background: var(--surface-color); padding: 12px 18px; font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: .02em; min-height: 44px; }
+.fc-screen button:hover { background: var(--secondary-color); }
+.fc-screen button:disabled { opacity: .4; cursor: default; }
+.fc-screen :focus-visible { outline: 3px solid var(--primary-color); outline-offset: 4px; }
+.fc-screen .fc-primary { background: var(--secondary-color); }
+.fc-header, .fc-heading, .fc-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.fc-header h1 { font-family: var(--font-pixel); font-size: clamp(24px, 4vw, 36px); }
+.fc-header > button { width: 48px; padding-inline: 0; font-size: 22px; }
+.fc-header-spacer { width: 48px; }
+.fc-screen h2 { font-size: clamp(22px, 3.5vw, 30px); font-weight: 800; letter-spacing: -.025em; margin: 4px 0; overflow-wrap: anywhere; }
+.fc-screen h3 { font-size: clamp(19px, 3vw, 25px); font-weight: 800; letter-spacing: -.015em; overflow-wrap: anywhere; }
+.fc-screen p { color: var(--muted-text-color); line-height: 1.5; margin: 12px 0; }
+.fc-content { min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; padding-top: clamp(12px, 2vh, 20px); }
+.fc-error:not(:empty) { padding: 12px; border: 1px solid var(--primary-color); margin: 14px 0; }
+.fc-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; border: 1px solid var(--secondary-color); border-radius: 10px; background: var(--surface-color); }
+.fc-tabs button { min-width: 0; padding-inline: 8px; border-color: transparent; font-size: clamp(12px, 2.3vw, 14px); }
+.fc-tabs button[aria-current="page"] { background: var(--secondary-color); border-color: var(--primary-color); }
+.fc-tabs button span { margin-right: 8px; font-size: 18px; vertical-align: -1px; }
+.fc-main-tabs { margin-top: 12px; }
+.fc-inline { display: flex; align-items: end; gap: 12px; margin: 16px 0; }
+.fc-screen label { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+.fc-screen input { width: 100%; min-height: 46px; border: 1px solid var(--secondary-color); border-radius: 6px; background: var(--background); padding: 12px; font-size: 18px; }
+.fc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.fc-dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: clamp(12px, 2vh, 20px); }
+.fc-dashboard > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border: 1px solid var(--secondary-color); border-radius: 10px; background: rgba(var(--primary-rgb), .04); }
+.fc-dashboard span { color: var(--muted-text-color); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.fc-dashboard strong { color: var(--primary-color); font-size: 24px; }
+.fc-heading > div p { margin: 3px 0 0; font-size: 13px; }
+.fc-decks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+.fc-panel { padding: clamp(16px, 3vw, 24px); border: 1px solid var(--secondary-color); border-radius: 12px; background: var(--surface-color); }
+.fc-deck-card { display: flex; flex-direction: column; min-height: 215px; transition: border-color .2s, transform .2s; }
+.fc-deck-card:hover { border-color: var(--primary-color); transform: translateY(-2px); }
+.fc-deck-card h3 { margin: 18px 0 10px; }
+.fc-deck-card > p { font-size: 12px; margin: 7px 0 18px; }
+.fc-deck-card .fc-actions { margin-top: auto; }
+.fc-deck-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.fc-deck-number { color: var(--muted-text-color); font-size: 12px; font-weight: 700; }
+.fc-due-pill { border-radius: 999px; background: rgba(var(--primary-rgb), .12); color: var(--primary-color); padding: 5px 8px; font-size: 11px; font-weight: 700; }
+.fc-progress { height: 5px; border-radius: 99px; background: var(--background); overflow: hidden; }
+.fc-progress span { display: block; height: 100%; background: var(--primary-color); }
+.fc-icon-danger { margin-left: auto; width: 42px; padding-inline: 0 !important; font-size: 20px !important; }
+.fc-empty-decks { grid-column: 1 / -1; border: 1px dashed var(--secondary-color); border-radius: 12px; }
+.fc-empty-icon { color: var(--primary-color); font-size: 36px; margin-bottom: 8px; }
+.fc-create-form { display: grid; gap: 16px; }
+.fc-settings-note { text-align: center; }
+.fc-actions { justify-content: flex-start; }
+.fc-section-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.fc-section-actions p { font-size: 13px; }
+.fc-study-heading > div { min-width: 0; }
+.fc-study-heading span { display: block; margin-top: 4px; color: var(--muted-text-color); font-size: 13px; }
+.fc-card-list { list-style: none; margin: 14px 0; min-height: 180px; display: grid; }
+.fc-card-list li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: clamp(16px, 3vw, 28px); border: 1px solid var(--secondary-color); border-radius: 12px; background: var(--surface-color); }
+.fc-card-list li > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.fc-card-list strong, .fc-card-list span, .fc-card-list small { display: block; margin: 5px 0; }
+.fc-card-list small, .fc-heading span { color: var(--muted-text-color); }
+.fc-study-card { min-height: clamp(210px, 42vh, 340px); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border: 2px solid var(--primary-color); border-radius: 18px; background: var(--surface-color); padding: clamp(18px, 4vw, 32px); margin: 12px 0; overflow-wrap: anywhere; }
+.fc-study-card h3 { font-size: clamp(32px, 6vw, 56px); max-width: 100%; }
+.fc-study-card small { display: block; color: var(--muted-text-color); margin-bottom: 12px; }
+.fc-answer { border-top: 1px solid var(--secondary-color); width: 100%; margin-top: 24px; padding-top: 24px; }
+.fc-answer p { color: var(--text-color); font-size: 28px; }
+.fc-ratings, .fc-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.fc-ratings small { display: block; margin-top: 8px; color: var(--muted-text-color); }
+.fc-stats > div { padding: 24px; border: 1px solid var(--secondary-color); border-radius: 12px; }
+.fc-stats strong { display: block; font-size: 36px; margin-bottom: 12px; }
+.fc-empty { padding: 36px 12px; text-align: center; }
+.fc-empty button { margin: 8px; }
+.fc-complete { width: min(620px, 100%); align-self: center; display: flex; flex-direction: column; align-items: center; text-align: center; padding: clamp(24px, 5vw, 44px); margin-top: clamp(16px, 5vh, 44px); border: 1px solid rgba(var(--primary-rgb), .45); border-radius: 18px; background: linear-gradient(145deg, rgba(var(--primary-rgb), .08), var(--surface-color)); box-shadow: 0 18px 50px rgba(0, 0, 0, .18); }
+.fc-complete-icon { width: 62px; height: 62px; display: grid; place-items: center; margin-bottom: 14px; border-radius: 50%; color: var(--background); background: var(--primary-color); font-size: 30px; font-weight: 900; box-shadow: 0 0 24px rgba(var(--primary-rgb), .3); }
+.fc-complete-label { color: var(--primary-color); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.fc-complete h3 { margin-top: 8px; font-size: clamp(25px, 4vw, 34px); }
+.fc-complete p strong { color: var(--text-color); }
+.fc-complete-stats { width: min(330px, 100%); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0; }
+.fc-complete-stats > div { padding: 12px; border: 1px solid rgba(var(--primary-rgb), .25); border-radius: 10px; }
+.fc-complete-stats strong, .fc-complete-stats span { display: block; }
+.fc-complete-stats strong { color: var(--primary-color); font-size: 23px; }
+.fc-complete-stats span { margin-top: 3px; color: var(--muted-text-color); font-size: 11px; text-transform: uppercase; }
+.fc-complete-actions { width: min(420px, 100%); display: grid; grid-template-columns: 1.25fr 1fr; gap: 10px; }
+.fc-pagination { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 10px 0; }
+.fc-pagination button { width: 48px; padding-inline: 0; }
+.fc-pagination span { min-width: 64px; text-align: center; }
+@media (max-width: 600px) {
+    .fc-screen { padding: 10px; gap: 8px; }
+    .fc-screen button { min-height: 40px; padding: 9px 11px; font-size: 13px; }
+    .fc-header h1 { font-size: 22px; }
+    .fc-fields { grid-template-columns: 1fr; gap: 10px; margin: 10px 0; }
+    .fc-dashboard { grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .fc-dashboard > div { flex-direction: column; justify-content: center; text-align: center; padding: 8px 4px; }
+    .fc-dashboard span { font-size: 9px; }
+    .fc-dashboard strong { font-size: 20px; }
+    .fc-heading { align-items: flex-end; }
+    .fc-heading > div { min-width: 0; }
+    .fc-heading > div p { display: none; }
+    .fc-decks { grid-template-columns: 1fr; }
+    .fc-inline { flex-direction: column; align-items: stretch; }
+    .fc-card-list li { align-items: stretch; flex-direction: column; }
+    .fc-card-list .fc-actions button { flex: 1; }
+    .fc-ratings, .fc-stats { grid-template-columns: 1fr 1fr; gap: 7px; }
+    .fc-ratings button { font-size: 12px; }
+    .fc-stats > div { padding: 15px; }
+    .fc-stats strong { font-size: 28px; margin-bottom: 6px; }
+    .fc-study-card { min-height: 210px; margin: 8px 0; }
+    .fc-answer { margin-top: 14px; padding-top: 14px; }
+    .fc-answer p { font-size: 22px; }
+    .fc-panel { padding: 15px; }
+    .fc-empty { padding: 22px 8px; }
+    .fc-complete { margin-top: 10px; padding: 20px 14px; }
+    .fc-complete-icon { width: 50px; height: 50px; font-size: 24px; }
+    .fc-complete-actions { grid-template-columns: 1fr; }
+}
+@media (min-width: 601px) and (max-width: 899px) { .fc-decks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 620px) {
+    .fc-screen { padding-block: 6px; gap: 5px; }
+    .fc-header h1 { font-size: 20px; }
+    .fc-screen button { min-height: 36px; padding-block: 7px; }
+    .fc-study-card { min-height: 175px; padding: 14px; }
+    .fc-study-card h3 { font-size: clamp(26px, 6vw, 42px); }
+    .fc-panel { padding: 12px; }
+    .fc-screen p { margin: 7px 0; }
+}
