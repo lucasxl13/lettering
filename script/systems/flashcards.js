@@ -2,33 +2,7 @@ export const MAX_CARDS = 20;
 export const GENERAL_DECK_ID = "__general__";
 const DAY = 86400000;
 
-// TODO(PEDRAO/CODEX — integração futura): este módulo é exclusivamente local.
-// Trocar loadDecks/saveDecks por um repositório da API; NÃO há banco/endpoints agora.
-// Contrato: deck {id,name,cards[]}; card {id,word,translation,dueAt,intervalDays,
-// ease,reviews,lapses,lastReviewedAt}. Datas são timestamps UTC em milissegundos.
-// GENERAL_DECK_ID identifica uma visão virtual: ela agrega cartões de todos os decks,
-// não deve ser persistida, não recebe cartões diretamente e não possui limite próprio.
-// O servidor deve obter o dono da sessão autenticada, validar limite de 20,
-// campos e duplicatas e salvar nota + agendamento atomicamente (com idempotência).
-// Não importar localStorage automaticamente para uma conta/banco sem migração explícita.
-export function loadDecks(owner) {
-    const raw = localStorage.getItem(`lettering-flashcards-v1:${owner}`);
-    if (!raw) return [];
-    const decks = JSON.parse(raw);
-    if (!Array.isArray(decks) || decks.some(deck =>
-        typeof deck.id !== "string" || typeof deck.name !== "string"
-        || !Array.isArray(deck.cards) || deck.cards.length > MAX_CARDS
-        || deck.cards.some(card => typeof card.id !== "string"
-            || typeof card.word !== "string" || typeof card.translation !== "string"
-            || ![card.dueAt, card.intervalDays, card.ease, card.reviews, card.lapses].every(Number.isFinite))
-    )) throw new Error("Invalid local decks");
-    return decks;
-}
-
-export function saveDecks(owner, decks) {
-    localStorage.setItem(`lettering-flashcards-v1:${owner}`, JSON.stringify(decks));
-}
-
+// Scheduling previews only; persistence is handled by flashcardsApi.js.
 export function newCard(word, translation) {
     return { id: crypto.randomUUID(), word: word.trim(), translation: translation.trim(),
         dueAt: 0, intervalDays: 0, ease: 2.5, reviews: 0, lapses: 0, lastReviewedAt: null };

@@ -1,0 +1,100 @@
+/* Versus 1v1: two equally readable boards on desktop. */
+.versus-screen {
+    --rival-color: #ff5277;
+    width: 100%; min-height: 100%; padding: clamp(10px, 1.8vh, 20px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    position: relative; overflow: auto; text-transform: uppercase;
+    background: radial-gradient(circle at 25% 50%, rgba(var(--primary-rgb), .09), transparent 34%), radial-gradient(circle at 75% 50%, rgba(255, 82, 119, .08), transparent 34%), var(--background);
+}
+.versus-screen::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .35; background-image: linear-gradient(rgba(var(--primary-rgb), .06) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--primary-rgb), .06) 1px, transparent 1px); background-size: 36px 36px; }
+
+/* Lobby */
+.versus-lobby { width: min(460px, 100%); padding: clamp(22px, 4vw, 36px); display: flex; flex-direction: column; align-items: center; gap: 18px; position: relative; z-index: 1; background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color)); border: 1px solid rgba(var(--primary-rgb), .5); box-shadow: 0 24px 70px rgba(0, 0, 0, .45); }
+.versus-lobby h2 { margin: 0; color: var(--primary-color); font-size: 26px; letter-spacing: 2px; }
+.versus-lobby-description { margin: 0; color: var(--muted-text-color); font-size: 13px; text-align: center; text-transform: none; }
+.versus-lobby-actions { width: 100%; display: grid; gap: 10px; }
+.versus-lobby-divider { display: flex; align-items: center; gap: 12px; color: var(--muted-text-color); font-size: 11px; }
+.versus-lobby-divider::before, .versus-lobby-divider::after { content: ""; flex: 1; height: 1px; background: rgba(var(--primary-rgb), .24); }
+.join-room-box { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.join-room-input { min-width: 0; padding: 10px; color: var(--text-color); background: var(--background); border: 1px solid rgba(var(--primary-rgb), .55); outline: 0; font: 700 16px var(--font-pixel); letter-spacing: 3px; text-align: center; text-transform: uppercase; }
+.join-room-input:focus { border-color: var(--primary-color); box-shadow: 0 0 12px rgba(var(--primary-rgb), .3); }
+.versus-room-card { width: 100%; padding: 18px; background: rgba(var(--primary-rgb), .08); border: 1px dashed rgba(var(--primary-rgb), .55); }
+.versus-room-code-display { display: flex; justify-content: center; align-items: center; gap: 12px; }
+.versus-room-code { padding: 7px 15px; color: var(--primary-color); background: var(--background); font-size: 28px; font-weight: 900; letter-spacing: 5px; }
+.copy-code-btn { padding: 10px 14px; color: var(--background); background: var(--primary-color); border: 0; font-weight: 800; cursor: pointer; }
+.versus-waiting-pulse { display: flex; align-items: center; gap: 10px; color: var(--muted-text-color); font-size: 13px; }
+.pulse-dot, .versus-live-dot { width: 9px; height: 9px; border-radius: 50%; background: #25e892; box-shadow: 0 0 9px #25e892; animation: versusPulse 1.2s infinite; }
+@keyframes versusPulse { 50% { opacity: .35; transform: scale(.82); } }
+
+/* Match header */
+.versus-matchbar { width: min(1180px, 100%); min-height: 44px; padding: 7px 10px 7px 14px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; position: relative; z-index: 2; background: color-mix(in srgb, var(--surface-color) 82%, transparent); border: 1px solid rgba(var(--primary-rgb), .26); }
+.versus-match-title { display: flex; align-items: center; gap: 9px; color: var(--muted-text-color); font-size: 11px; letter-spacing: 1.5px; }
+.versus-clock { color: var(--text-color); font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+.versus-exit { justify-self: end; padding: 8px 12px; color: var(--muted-text-color); background: transparent; border: 1px solid rgba(255,255,255,.14); cursor: pointer; font: 700 10px var(--font-pixel); }
+.versus-exit:hover { color: #fff; border-color: var(--rival-color); }
+
+/* Arena */
+.versus-arena { width: min(1180px, 100%); display: grid; grid-template-columns: minmax(300px, 1fr) 72px minmax(300px, 1fr); align-items: start; gap: clamp(12px, 2vw, 24px); position: relative; z-index: 1; }
+.versus-player { min-width: 0; width: 100%; display: flex; flex-direction: column; }
+.versus-player-header { min-height: 60px; padding: 9px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; background: color-mix(in srgb, var(--primary-color) 9%, var(--surface-color)); border: 2px solid rgba(var(--primary-rgb), .62); border-bottom: 0; }
+.versus-player--opponent .versus-player-header { background: color-mix(in srgb, var(--rival-color) 9%, var(--surface-color)); border-color: color-mix(in srgb, var(--rival-color) 62%, transparent); }
+.versus-player-identity { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.versus-player-identity small, .versus-player-metrics small { color: var(--muted-text-color); font-size: 9px; letter-spacing: 1.2px; }
+.versus-player-identity strong { overflow: hidden; color: var(--primary-color); font-size: clamp(14px, 1.4vw, 19px); text-overflow: ellipsis; white-space: nowrap; }
+.versus-player--opponent .versus-player-identity strong, .versus-player--opponent .versus-player-metrics strong { color: var(--rival-color); }
+.versus-player-metrics { display: flex; gap: clamp(14px, 3vw, 28px); }
+.versus-player-metrics > span { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.versus-player-metrics strong { color: var(--primary-color); font-size: 19px; font-variant-numeric: tabular-nums; }
+.versus-board { width: 100%; max-height: calc(100dvh - 190px); aspect-ratio: 9 / 10; display: grid; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(10, 1fr); gap: clamp(2px, .35vw, 4px); padding: clamp(3px, .45vw, 5px); background: color-mix(in srgb, var(--primary-color) 3%, var(--background)); border: 2px solid rgba(var(--primary-rgb), .65); user-select: none; }
+.versus-board--opponent { background: color-mix(in srgb, var(--rival-color) 3%, var(--background)); border-color: color-mix(in srgb, var(--rival-color) 62%, transparent); }
+.versus-board .board-cell, .versus-board .opponent-cell { min-width: 0; min-height: 0; display: grid; place-items: center; color: var(--text-color); background: rgba(255,255,255,.025); border: 1px solid rgba(var(--primary-rgb), .14); font: 700 clamp(14px, 1.6vw, 22px) var(--font-pixel); }
+.versus-board .board-cell.locked { background: color-mix(in srgb, var(--primary-color) 22%, var(--background)); border-color: rgba(var(--primary-rgb), .68); }
+.versus-board .board-cell.falling { color: var(--background); background: var(--primary-color); border-color: var(--primary-color); box-shadow: 0 0 13px rgba(var(--primary-rgb), .7); }
+.versus-board .board-cell.word-match { cursor: pointer; background: var(--primary-color); border-color: #fff; animation: wordPulse 1s ease-in-out infinite alternate; }
+.versus-board .opponent-cell { border-color: rgba(255,82,119,.12); }
+.versus-board .opponent-cell.locked { color: #ffdbe3; background: color-mix(in srgb, var(--rival-color) 24%, var(--background)); border-color: rgba(255,82,119,.65); }
+.versus-board .opponent-cell.falling { color: #fff; background: var(--rival-color); border-color: var(--rival-color); box-shadow: 0 0 13px rgba(255,82,119,.7); }
+.versus-controls { min-height: 68px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color)); border: 2px solid rgba(var(--primary-rgb), .62); border-top: 0; }
+.versus-controls > div { display: flex; align-items: center; gap: 10px; }
+.versus-controls small { color: var(--muted-text-color); font-size: 9px; }
+.current-letter-container { display: flex; gap: 5px; }
+.versus-controls .current-letter { width: 34px; height: 34px; font-size: 15px; }
+.versus-controls p { margin: 0; color: var(--muted-text-color); font-size: 9px; text-align: right; }
+.versus-controls kbd { padding: 3px 5px; color: var(--text-color); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); }
+.opponent-watch-label { min-height: 68px; display: grid; place-items: center; color: color-mix(in srgb, var(--rival-color) 72%, var(--muted-text-color)); background: color-mix(in srgb, var(--rival-color) 6%, var(--surface-color)); border: 2px solid color-mix(in srgb, var(--rival-color) 62%, transparent); border-top: 0; font-size: 10px; letter-spacing: 1.5px; }
+.versus-center-panel { padding-top: 90px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.versus-badge { padding: 10px 12px; color: var(--text-color); background: linear-gradient(135deg, var(--primary-color), var(--rival-color)); border-radius: 50%; font-size: 20px; font-weight: 900; box-shadow: 0 0 24px rgba(var(--primary-rgb), .28); }
+.versus-status-indicator { display: flex; align-items: center; gap: 6px; color: var(--muted-text-color); font-size: 9px; }
+.status-dot-connected, .status-dot-disconnected { width: 7px; height: 7px; border-radius: 50%; background: #25e892; box-shadow: 0 0 7px #25e892; }
+.status-dot-disconnected { background: #ff3344; box-shadow: 0 0 7px #ff3344; }
+
+/* Feedback and results */
+.versus-toast-container { position: fixed; top: 18px; left: 50%; z-index: 1100; display: grid; gap: 8px; transform: translateX(-50%); pointer-events: none; }
+.versus-toast { padding: 10px 18px; color: #fff; background: color-mix(in srgb, var(--surface-color) 90%, black); border: 1px solid var(--primary-color); box-shadow: 0 8px 30px rgba(0,0,0,.5); font-size: 12px; animation: toastIn .2s ease-out, toastOut .35s ease-in 2.5s forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } } @keyframes toastOut { to { opacity: 0; transform: translateY(-10px); } }
+.versus-result-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.84); backdrop-filter: blur(8px); }
+.versus-result-modal { width: min(430px, 100%); padding: 30px 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; color: var(--text-color); background: var(--surface-color); border: 2px solid var(--primary-color); text-align: center; box-shadow: 0 20px 70px rgba(0,0,0,.6); }
+.versus-result-modal.victory { border-color: #25e892; } .versus-result-modal.defeat { border-color: var(--rival-color); }
+.versus-result-modal h2, .versus-result-modal p { margin: 0; } .versus-result-modal.victory h2 { color: #25e892; } .versus-result-modal.defeat h2 { color: var(--rival-color); }
+.versus-result-scores { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.versus-score-box { padding: 12px; display: flex; flex-direction: column; gap: 5px; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.1); }
+.versus-score-box small { color: var(--muted-text-color); } .versus-score-box strong { color: var(--primary-color); font-size: 21px; }
+
+@media (max-width: 900px) {
+    .versus-screen { justify-content: flex-start; }
+    .versus-matchbar { position: sticky; top: 0; }
+    .versus-arena { width: min(520px, 100%); grid-template-columns: 1fr; gap: 14px; }
+    .versus-center-panel { order: -1; padding: 0; flex-direction: row; justify-content: center; }
+    .versus-badge { border-radius: 4px; padding: 6px 12px; }
+    .versus-board { max-height: none; }
+    .versus-player--opponent { margin-top: 2px; }
+}
+@media (max-width: 540px) {
+    .versus-screen { padding: 8px; }
+    .versus-match-title { font-size: 9px; }
+    .versus-exit { padding: 7px; font-size: 9px; }
+    .versus-controls { align-items: flex-start; flex-direction: column; }
+    .versus-controls p { text-align: left; }
+    .join-room-box { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .pulse-dot, .versus-live-dot, .versus-toast, .board-cell.word-match { animation: none; } }

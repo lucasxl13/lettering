@@ -3,10 +3,12 @@ import { getSession } from "../systems/auth.js";
 import { registerModal } from "../systems/modal.js";
 import { startGridEffects } from "../systems/grid-effects.js";
 import { loadClassic } from "./classic.js";
+import { loadVersus } from "./versus.js";
 import { getRanking } from "../api/matchesApi.js";
 
 import { loadFlashcards } from "./flashcards.js";
-import { GENERAL_DECK_ID, loadDecks } from "../systems/flashcards.js";
+import { GENERAL_DECK_ID } from "../systems/flashcards.js";
+import { getFlashcards } from "../api/flashcardsApi.js";
 
 const SELECTED_MODE_KEY = "lettering-selected-mode";
 const SELECTED_FLASHCARD_DECK_KEY = "lettering-selected-flashcard-deck";
@@ -28,6 +30,12 @@ const MODES = [
         icon: "!",
         titleKey: "hardcore_mode",
         descriptionKey: "hardcore_description"
+    },
+    {
+        id: "versus",
+        icon: "⚔",
+        titleKey: "versus_mode",
+        descriptionKey: "versus_description"
     },
     {
         id: "flashcards",
@@ -55,7 +63,7 @@ export function loadModes(onBack) {
     let selectedMode = getSelectedMode();
     if (!session && selectedMode.id === "flashcards") selectedMode = MODES[0];
     let selectedTheme = null;
-    const flashcardDecks = session ? safelyLoadFlashcardDecks(session.user.id) : [];
+    let flashcardDecks = [];
     let selectedFlashcardDeckId = getSelectedFlashcardDeckId(flashcardDecks);
 
     // TODO(SERVER-INTEGRATION): quando houver uma sessão validada, buscar
@@ -118,6 +126,20 @@ export function loadModes(onBack) {
     const themeButton = document.getElementById("open-theme-selector");
     const rankingButton = document.getElementById("ranking-button");
     const flashcardsDeckButton = document.getElementById("flashcards-decks-button");
+    if (session) {
+        flashcardsDeckButton.disabled = true;
+        getFlashcards().then(result => {
+            if (!flashcardsDeckButton.isConnected) return;
+            flashcardDecks = result.decks;
+            selectedFlashcardDeckId = getSelectedFlashcardDeckId(flashcardDecks);
+            flashcardsDeckButton.innerHTML = createFlashcardDeckLabel(selectedFlashcardDeckId, flashcardDecks);
+            flashcardsDeckButton.disabled = false;
+        }).catch(() => {
+            if (!flashcardsDeckButton.isConnected) return;
+            flashcardsDeckButton.innerHTML = t("fc_load_error");
+            flashcardsDeckButton.disabled = false;
+        });
+    }
     flashcardsDeckButton.addEventListener("click", () => openFlashcardDeckSelector(
         selectedFlashcardDeckId,
         flashcardDecks,
@@ -134,6 +156,15 @@ export function loadModes(onBack) {
     playButton.addEventListener("click", () => {
         if (selectedMode.id === "flashcards") {
             loadFlashcards(() => loadModes(onBack), "study", selectedFlashcardDeckId);
+            return;
+        }
+
+        if (selectedMode.id === "versus") {
+            if (!session) {
+                window.alert(t("versus_login_required"));
+                return;
+            }
+            loadVersus(() => loadModes(onBack));
             return;
         }
 
@@ -169,7 +200,7 @@ export function loadModes(onBack) {
             localStorage.setItem(SELECTED_MODE_KEY, mode.id);
             playButton.innerHTML = createPlayLabel(mode);
             themeButton.classList.toggle("hidden", mode.id !== "learning");
-            rankingButton.classList.toggle("hidden", mode.id === "flashcards");
+            rankingButton.classList.toggle("hidden", ["flashcards", "versus"].includes(mode.id));
             flashcardsMenuButtons.forEach(button => {
                 button.classList.toggle("hidden", mode.id !== "flashcards");
             });
@@ -421,7 +452,7 @@ function getGameTheme(theme) {
 
 function createModeOption(mode, selectedModeId, authenticated) {
     const isSelected = mode.id === selectedModeId;
-    const requiresAccount = mode.id === "flashcards" && !authenticated;
+    const requiresAccount = ["flashcards", "versus"].includes(mode.id) && !authenticated;
 
     return `
         <button
@@ -458,11 +489,6 @@ function createThemeLabel(theme) {
 function getSelectedMode() {
     const selectedModeId = localStorage.getItem(SELECTED_MODE_KEY);
     return MODES.find(mode => mode.id === selectedModeId) ?? MODES[0];
-}
-
-function safelyLoadFlashcardDecks(owner) {
-    try { return loadDecks(owner); }
-    catch { return []; }
 }
 
 function getSelectedFlashcardDeckId(decks) {

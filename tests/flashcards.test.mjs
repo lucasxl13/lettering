@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 const source = readFileSync(new URL('../script/systems/flashcards.js', import.meta.url), 'utf8');
-const { newCard, scheduleCard, dueCards, loadDecks, saveDecks } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const { newCard, scheduleCard, dueCards } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 test('ratings schedule different intervals; errors return sooner and successful reviews grow', () => {
     const card = newCard('house', 'casa');
@@ -28,16 +28,3 @@ test('due reviews precede new cards; future cards only return when due', () => {
     assert.deepEqual(dueCards(deck, now + 60000), [failed, fresh]);
 });
 
-test('storage survives reload, separates users and refuses corrupt/over-limit data', () => {
-    const data = new Map();
-    globalThis.localStorage = { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
-    const decks = [{ id: 'test', name: 'Teste', cards: [newCard('house', 'casa')] }];
-    saveDecks('one', decks);
-    assert.deepEqual(loadDecks('one'), decks);
-    assert.deepEqual(loadDecks('two'), []);
-    data.set('lettering-flashcards-v1:one', '{broken');
-    assert.throws(() => loadDecks('one'));
-    decks[0].cards = Array.from({ length: 21 }, () => newCard('word', 'tradução'));
-    saveDecks('one', decks);
-    assert.throws(() => loadDecks('one'));
-});
