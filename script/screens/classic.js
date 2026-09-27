@@ -2,6 +2,8 @@ import { getLanguage, t } from "../systems/language.js";
 import { startGridEffects } from "../systems/grid-effects.js";
 import { getSession } from "../systems/auth.js";
 import { ApiRequestError } from "../api/apiClient.js";
+import { playEffect } from "../systems/audio-player.js";
+import { createCycleLetterBatch, createWordCycle, registerWordSuccess } from "../systems/word-cycle.js";
 import {
     getMatches,
     getMatchState,
@@ -55,10 +57,15 @@ export async function loadClassic(onBack, options = {}) {
         () => Array(BOARD_COLUMNS).fill(null)
     );
     if (authenticated) fillBoardFromCells(board, initialSnapshot.match.board.cells);
+    const cycleDictionary = mode === "learning" ? thematicDictionary : dictionary;
+    let wordCycle = authenticated
+        ? initialSnapshot.match.wordCycle
+        : mode === "hardcore" ? null
+        : createWordCycle(cycleDictionary, theme ?? "general");
     let letterRotationIndex = 0;
     let currentBatch = authenticated
         ? initialSnapshot.match.letterOptions
-        : createModeLetterBatch(mode, letterWeights, thematicDictionary, letterRotationIndex++);
+        : createModeLetterBatch(mode, letterWeights, thematicDictionary, letterRotationIndex++, wordCycle, board);
     const activeBlock = { row: 0, column: Math.floor(BOARD_COLUMNS / 2) };
     let horizontalMovement = 0;
     let selectedLetterIndex = 0;
@@ -119,6 +126,10 @@ export async function loadClassic(onBack, options = {}) {
                         ${createCurrentBatch(currentBatch, selectedLetterIndex)}
                     </div>
 
+                    <div class="active-word-cycle ${wordCycle ? "" : "hidden"}" id="active-word-cycle">
+                        ${createWordCycleMarkup(wordCycle)}
+                    </div>
+
                     <div
                         class="classic-board"
                         role="grid"
@@ -156,6 +167,7 @@ export async function loadClassic(onBack, options = {}) {
     const boardCells = [...document.querySelectorAll(".board-cell")];
     const boardElement = document.querySelector(".classic-board");
     const currentBatchElement = document.querySelector(".current-batch");
+    const wordCycleElement = document.getElementById("active-word-cycle");
     let touchStart = null;
     let touchHoldTimeout = null;
     let touchDropInterval = null;
@@ -287,6 +299,11 @@ export async function loadClassic(onBack, options = {}) {
         currentBatchElement.innerHTML = createCurrentBatch(currentBatch, selectedLetterIndex);
     }
 
+    function renderWordCycle() {
+        wordCycleElement.classList.toggle("hidden", !wordCycle);
+        wordCycleElement.innerHTML = createWordCycleMarkup(wordCycle);
+    }
+
     function selectNextLetter() {
         if (gameEnded || requestPending || currentBatch.length === 0) return;
         selectedLetterIndex = (selectedLetterIndex + 1) % PIECE_SIZE;
@@ -332,6 +349,7 @@ export async function loadClassic(onBack, options = {}) {
 
         activeBlock.column = nextColumn;
         horizontalMovement = direction;
+        playEffect("select", .38);
         renderBoard();
         horizontalMovement = 0;
     }
@@ -356,12 +374,13 @@ export async function loadClassic(onBack, options = {}) {
         board[activeBlock.row][activeBlock.column] = getOptionLetter(
             currentBatch[selectedLetterIndex]
         );
+        playEffect("drop", .55);
 
         if (reachedTop) {
             loseLife();
             if (!gameEnded) {
                 currentBatch = createModeLetterBatch(
-                    mode, letterWeights, thematicDictionary, letterRotationIndex++
+                    mode, letterWeights, thematicDictionary, letterRotationIndex++, wordCycle, board
                 );
                 selectedLetterIndex = 0;
                 activeBlock.row = 0;
@@ -372,7 +391,7 @@ export async function loadClassic(onBack, options = {}) {
         }
 
         currentBatch = createModeLetterBatch(
-            mode, letterWeights, thematicDictionary, letterRotationIndex++
+            mode, letterWeights, thematicDictionary, letterRotationIndex++, wordCycle, board
         );
         selectedLetterIndex = 0;
         activeBlock.row = 0;
@@ -397,10 +416,13 @@ export async function loadClassic(onBack, options = {}) {
             boardVersion = result.boardVersion;
             fillBoardFromCells(board, result.board.cells);
             currentBatch = result.letterOptions;
+            wordCycle = result.wordCycle ?? wordCycle;
             selectedLetterIndex = 0;
             activeBlock.row = 0;
             score = result.currentScore;
+            const lostLife = result.livesRemaining < lives;
             lives = result.livesRemaining;
+            playEffect(lostLife ? "life" : "drop", lostLife ? .8 : .55);
 
             pendingWord = result.foundWord
                 ? normalizeServerWord(result.foundWord)
@@ -410,6 +432,7 @@ export async function loadClassic(onBack, options = {}) {
             updateLivesDisplay(livesDisplay, lives);
             updateFoundWordsCount();
             renderCurrentBatch();
+            renderWordCycle();
             renderFoundWords();
             renderBoard();
 
@@ -439,6 +462,7 @@ export async function loadClassic(onBack, options = {}) {
         boardVersion = snapshot.match.board.version;
         fillBoardFromCells(board, snapshot.match.board.cells);
         currentBatch = snapshot.match.letterOptions;
+        wordCycle = snapshot.match.wordCycle ?? wordCycle;
         selectedLetterIndex = 0;
         activeBlock.row = 0;
         score = snapshot.match.player.score;
@@ -463,16 +487,23 @@ export async function loadClassic(onBack, options = {}) {
         updateLivesDisplay(livesDisplay, lives);
         updateFoundWordsCount();
         renderCurrentBatch();
+        renderWordCycle();
         renderFoundWords();
         renderBoard();
     }
 
     function loseLife() {
         lives -= 1;
+        playEffect("life", .8);
         updateLivesDisplay(livesDisplay, lives);
 
         board.forEach(row => row.fill(null));
         pendingWord = null;
+        if (wordCycle && lives > 0) {
+            const previousWords = wordCycle.activeWords.map(item => item.word);
+            wordCycle = createWordCycle(cycleDictionary, theme ?? "general", previousWords);
+            renderWordCycle();
+        }
         renderBoard();
 
         if (lives === 0) {
@@ -546,10 +577,15 @@ export async function loadClassic(onBack, options = {}) {
         }
 
         score += points;
+        playEffect("word", .75);
         if (!foundWords.some(item => item.word === pendingWord.word)) {
             foundWords.unshift({ ...pendingWord, points });
         }
         if (thematicWords.has(pendingWord.word)) thematicFoundWords.add(pendingWord.word);
+        if (wordCycle) {
+            registerWordSuccess(wordCycle, pendingWord.word, cycleDictionary);
+            renderWordCycle();
+        }
         scoreDisplay.textContent = String(score);
         updateFoundWordsCount();
         pendingWord = null;
@@ -568,7 +604,9 @@ export async function loadClassic(onBack, options = {}) {
             boardVersion = result.boardVersion;
             fillBoardFromCells(board, result.board.cells);
             score = result.currentScore;
+            playEffect("word", .75);
             const confirmedWord = normalizeServerWord(result.confirmedWord);
+            wordCycle = result.wordCycle ?? wordCycle;
             if (!foundWords.some(item => item.word === confirmedWord.word)) {
                 foundWords.unshift(confirmedWord);
             }
@@ -578,6 +616,7 @@ export async function loadClassic(onBack, options = {}) {
             scoreDisplay.textContent = String(score);
             updateFoundWordsCount();
             renderFoundWords();
+            renderWordCycle();
             renderBoard();
             // Em partidas autenticadas, somente o servidor encerra o objetivo.
             if (result.completed) showVictory();
@@ -629,6 +668,7 @@ export async function loadClassic(onBack, options = {}) {
         gameEnded = true;
         paused = true;
         stopGame();
+        playEffect("victory", .8);
 
         const overlay = document.createElement("div");
         overlay.className = "game-over-overlay victory-overlay";
@@ -772,6 +812,7 @@ export async function loadClassic(onBack, options = {}) {
         gameEnded = true;
         paused = true;
         stopGame();
+        playEffect("defeat", .75);
 
         const overlay = document.createElement("div");
         overlay.className = "game-over-overlay";
@@ -842,8 +883,11 @@ function createBoardCells() {
     ).join("");
 }
 
-function createModeLetterBatch(mode, letterWeights, thematicDictionary, rotationIndex) {
+function createModeLetterBatch(mode, letterWeights, thematicDictionary, rotationIndex, wordCycle = null, board = []) {
     if (mode === "hardcore") return createLetterBatch(letterWeights);
+    if (wordCycle?.activeWords.length) {
+        return createCycleLetterBatch(wordCycle, board, letterWeights, pickWeightedLetter);
+    }
     if (thematicDictionary.length === 0) {
         return createRotatingLetterBatch(letterWeights, rotationIndex);
     }
@@ -965,6 +1009,23 @@ function createCurrentBatch(letters, selectedIndex) {
     `).join("");
 }
 
+function createWordCycleMarkup(cycle) {
+    if (!cycle?.activeWords?.length) return "";
+    const words = [...cycle.activeWords]
+        .sort((a, b) => a.dueDrop - b.dueDrop || a.word.localeCompare(b.word));
+    return `
+        <span class="active-word-cycle-label">${t("round_words")}</span>
+        <div class="active-word-cycle-list">
+            ${words.map(item => {
+                const waiting = item.dueDrop > cycle.dropNumber;
+                return `<span class="active-word-chip ${waiting ? "waiting" : "due"}">
+                    <strong>${item.word}</strong>
+                </span>`;
+            }).join("")}
+        </div>
+    `;
+}
+
 function getOptionLetter(option) {
     if (typeof option === "string") return option;
     return option?.letter ?? "";
@@ -1004,7 +1065,6 @@ function normalizeServerWord(item) {
         entry: {
             word,
             translations,
-            description: normalizeLocalizedLists(item.description),
             score: Number(item.pointsEarned ?? item.score ?? 0)
         }
     };
@@ -1124,15 +1184,10 @@ async function loadDictionary(theme = null) {
         if (!response.ok) return [];
 
         const data = await response.json();
-        const themes = data.general ?? {};
-
-        if (theme) {
-            return normalizeDictionary(themes[theme]?.words ?? []);
-        }
-
-        const allWords = Object.values(themes)
-            .flatMap(themeData => themeData.words ?? []);
-        return normalizeDictionary(allWords);
+        const words = Array.isArray(data.words) ? data.words : [];
+        return normalizeDictionary(theme
+            ? words.filter(entry => entry.themes?.includes(theme))
+            : words);
     } catch {
         return [];
     }
@@ -1172,7 +1227,6 @@ function normalizeDictionary(words) {
             mergedWords.set(entry.word, {
                 word: entry.word,
                 translations: {},
-                description: {},
                 score: Number(entry.score ?? entry.word.length * 10)
             });
         }
@@ -1180,7 +1234,6 @@ function normalizeDictionary(words) {
         const mergedEntry = mergedWords.get(entry.word);
 
         mergeLocalizedLists(mergedEntry.translations, entry.translations);
-        mergeLocalizedLists(mergedEntry.description, entry.description);
         mergedEntry.score = Math.max(mergedEntry.score, Number(entry.score ?? 0));
     });
 

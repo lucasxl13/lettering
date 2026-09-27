@@ -187,6 +187,8 @@
     font-size: clamp(17px, 1.35vw, 22px);
     background: color-mix(in srgb, var(--primary-color) 2%, var(--background));
     border: 1px solid rgba(var(--primary-rgb), .12);
+    transform-origin: center;
+    will-change: transform, filter;
 }
 
 .board-cell.locked {
@@ -196,6 +198,8 @@
 }
 
 .board-cell.falling {
+    position: relative;
+    z-index: 2;
     color: var(--background);
     background: var(--primary-color);
     border-color: var(--primary-color);
@@ -203,27 +207,106 @@
 }
 
 .board-cell.falling-left {
-    animation: pieceSlideLeft 110ms ease-out;
+    animation: pieceSlideLeft 145ms cubic-bezier(.2, .9, .28, 1.18);
+}
+
+.active-word-cycle {
+    display: grid;
+    gap: 6px;
+    padding: 7px 8px 9px;
+    background: color-mix(in srgb, var(--primary-color) 4%, var(--background));
+    border-inline: 2px solid rgba(var(--primary-rgb), .65);
+}
+
+.active-word-cycle-label {
+    color: var(--muted-text-color);
+    font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+    font-size: 11px;
+    text-align: center;
+    text-transform: none;
+}
+
+.active-word-cycle-list {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.active-word-chip {
+    display: grid;
+    gap: 3px;
+    min-width: 64px;
+    padding: 5px 7px;
+    text-align: center;
+    background: rgba(var(--primary-rgb), .1);
+    border: 1px solid rgba(var(--primary-rgb), .35);
+}
+
+.active-word-chip strong {
+    color: var(--primary-color);
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.active-word-chip.waiting {
+    opacity: .55;
+}
+
+.board-cell.falling-left::after,
+.board-cell.falling-right::after {
+    content: "";
+    position: absolute;
+    top: 14%;
+    width: 85%;
+    height: 72%;
+    opacity: .78;
+    pointer-events: none;
+    filter: blur(4px);
+    animation: pieceLightTrail 145ms ease-out forwards;
+}
+
+.board-cell.falling-left::after {
+    left: 100%;
+    background: linear-gradient(90deg, rgba(var(--primary-rgb), .75), transparent);
+}
+
+.board-cell.falling-right::after {
+    right: 100%;
+    background: linear-gradient(90deg, transparent, rgba(var(--primary-rgb), .75));
 }
 
 .board-cell.falling-right {
-    animation: pieceSlideRight 110ms ease-out;
+    animation: pieceSlideRight 145ms cubic-bezier(.2, .9, .28, 1.18);
 }
 
 @keyframes pieceSlideLeft {
-    from { transform: translateX(22%); }
-    to { transform: translateX(0); }
+    0% { transform: translateX(48%) scaleX(.82); filter: brightness(1.65); }
+    72% { transform: translateX(-7%) scaleX(1.06); }
+    100% { transform: translateX(0) scaleX(1); filter: brightness(1); }
 }
 
 @keyframes pieceSlideRight {
-    from { transform: translateX(-22%); }
-    to { transform: translateX(0); }
+    0% { transform: translateX(-48%) scaleX(.82); filter: brightness(1.65); }
+    72% { transform: translateX(7%) scaleX(1.06); }
+    100% { transform: translateX(0) scaleX(1); filter: brightness(1); }
+}
+
+@keyframes pieceLightTrail {
+    from { opacity: .82; transform: scaleX(1); }
+    to { opacity: 0; transform: scaleX(.18); }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .board-cell.falling-left,
     .board-cell.falling-right {
         animation: none;
+    }
+
+    .board-cell.falling-left::after,
+    .board-cell.falling-right::after {
+        display: none;
     }
 }
 

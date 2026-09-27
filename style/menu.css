@@ -141,6 +141,7 @@
     background: var(--surface-color);
     background: color-mix(in srgb, var(--primary-color) 8%, var(--background));
     border: 1px solid rgba(var(--primary-rgb), .55);
+    border-radius: 16px;
     z-index: 1;
 }
 
@@ -154,6 +155,7 @@
     font-size: 17px;
     background: linear-gradient(145deg, var(--primary-color), var(--secondary-color));
     border: 2px solid var(--primary-color);
+    border-radius: 10px;
 }
 
 .user-details {
@@ -181,6 +183,7 @@
     cursor: pointer;
     background: transparent;
     border: 1px solid var(--primary-color);
+    border-radius: 8px;
 }
 
 .account-card button:hover {
@@ -206,6 +209,7 @@
     color: var(--text-color);
     background: transparent;
     border: 2px solid var(--primary-color);
+    border-radius: 10px;
     transform: translateY(-700px);
     animation: blockFall 1.8s linear forwards;
 }
@@ -257,6 +261,7 @@
     background: var(--surface-color);
     background: color-mix(in srgb, var(--primary-color) 15%, var(--background));
     border: 2px solid var(--primary-color);
+    border-radius: 10px;
     box-shadow: 0 0 10px var(--primary-color);
     transition: transform .3s, background-color .3s, box-shadow .3s;
     z-index: 1;
@@ -304,7 +309,7 @@
     width: min(440px, 100%);
     max-height: calc(100vh - 40px);
     overflow-y: auto;
-    padding: 28px;
+    padding: 22px 26px;
     text-align: center;
     background: var(--surface-color);
     border: 2px solid var(--primary-color);
@@ -327,14 +332,55 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 18px;
 }
 
 .volume-settings {
     display: grid;
-    gap: 24px;
-    margin: 8px 0 32px;
+    gap: 16px;
+    margin: 6px 0 22px;
     text-align: left;
+}
+
+.radio-settings {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 20px;
+    text-align: left;
+    color: var(--text-color);
+}
+
+.radio-controls {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    gap: 8px;
+}
+
+.radio-controls button,
+.radio-controls select {
+    min-height: 44px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--primary-color);
+    background: var(--surface-color);
+    color: var(--text-color);
+    font: inherit;
+    cursor: pointer;
+}
+
+.radio-controls :focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 3px;
+}
+
+.radio-status {
+    color: var(--muted-text-color);
+    line-height: 1.5;
+    text-transform: none;
+}
+
+.radio-status:empty {
+    display: none;
 }
 
 .settings-toggle {
@@ -342,7 +388,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin: -8px 0 24px;
+    margin: 0 0 18px;
     color: var(--text-color);
     font-size: 14px;
     text-align: left;
@@ -572,7 +618,7 @@
     .settings-panel {
         width: min(430px, 100%);
         max-height: calc(100vh - 16px);
-        padding: 16px;
+        padding: 12px 16px;
     }
 
     .settings-panel h2 {
@@ -590,7 +636,7 @@
     .theme-options {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 7px;
-        margin-bottom: 14px;
+        margin-bottom: 10px;
     }
 
     .theme-option {
@@ -604,11 +650,23 @@
     .volume-settings {
         grid-template-columns: 1fr;
         gap: 8px;
-        margin: 4px 0 12px;
+        margin: 2px 0 9px;
+    }
+
+    .radio-settings {
+        gap: 5px;
+        margin-bottom: 10px;
+        font-size: 13px;
+    }
+
+    .radio-controls button,
+    .radio-controls select {
+        min-height: 38px;
+        padding: 5px 7px;
     }
 
     .settings-toggle {
-        margin: 2px 0 14px;
+        margin: 0 0 9px;
         font-size: 13px;
     }
 
@@ -641,8 +699,8 @@
     }
 
     .close-settings {
-        min-height: 52px;
-        padding: 11px;
+        min-height: 46px;
+        padding: 8px;
         font-size: 17px;
         font-weight: 400;
     }

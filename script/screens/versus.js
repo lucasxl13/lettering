@@ -2,6 +2,7 @@ import { getLanguage, t } from "../systems/language.js";
 import { startGridEffects } from "../systems/grid-effects.js";
 import { getSession } from "../systems/auth.js";
 import { WS_BASE_URL } from "../config.js";
+import { playEffect } from "../systems/audio-player.js";
 
 const BOARD_ROWS = 10;
 const BOARD_COLUMNS = 9;
@@ -46,6 +47,7 @@ export async function loadVersus(onBack) {
     let currentBatch = createLetterBatch(letterWeights);
     const activeBlock = { row: 0, column: Math.floor(BOARD_COLUMNS / 2) };
     let selectedLetterIndex = 0;
+    let horizontalMovement = 0;
     let score = 0;
     let lives = 3;
     let pendingWord = null;
@@ -125,6 +127,7 @@ export async function loadVersus(onBack) {
                     currentBatch = msg.initialBatch;
                 }
                 matchRandom = createSeededRandom(Number(msg.matchSeed) || Date.now());
+                playEffect("match", .6);
                 startCountdownAndMatch();
                 break;
 
@@ -501,7 +504,10 @@ export async function loadVersus(onBack) {
             const nextCol = activeBlock.column + dir;
             if (canMove(activeBlock.row, nextCol)) {
                 activeBlock.column = nextCol;
+                horizontalMovement = dir;
+                playEffect("select", .38);
                 renderPlayerBoard();
+                horizontalMovement = 0;
                 syncState();
             }
         }
@@ -527,10 +533,12 @@ export async function loadVersus(onBack) {
             const letter = currentBatch[selectedLetterIndex];
 
             board[landedRow][landedCol] = letter;
+            playEffect("drop", .55);
 
             if (landedRow === 0) {
                 // Top reached -> Lose life
                 lives -= 1;
+                playEffect("life", .8);
                 livesDisplay.textContent = String(lives);
                 board.forEach(row => row.fill(null));
                 pendingWord = null;
@@ -562,6 +570,7 @@ export async function loadVersus(onBack) {
 
             const pts = pendingWord.entry?.score ?? (pendingWord.word.length * 10);
             score += pts;
+            playEffect("word", .75);
             scoreDisplay.textContent = String(score);
 
             // Clear cells & apply gravity
@@ -611,6 +620,8 @@ export async function loadVersus(onBack) {
                 const lockedLetter = board[r][c];
 
                 cell.classList.toggle("falling", isFalling);
+                cell.classList.toggle("falling-left", isFalling && horizontalMovement < 0);
+                cell.classList.toggle("falling-right", isFalling && horizontalMovement > 0);
                 cell.classList.toggle("locked", Boolean(lockedLetter) && !isFalling);
                 cell.classList.toggle("word-match", pendingWord?.cells.includes(index) ?? false);
 
@@ -675,6 +686,7 @@ export async function loadVersus(onBack) {
         const isWin = data.result === "win" || data.winner === session.user.username;
         const title = isWin ? t("you_won") : t("you_lost");
         const modalClass = isWin ? "victory" : "defeat";
+        playEffect(isWin ? "victory" : "defeat", .8);
 
         const overlay = document.createElement("div");
         overlay.className = "versus-result-overlay";
@@ -859,8 +871,7 @@ async function loadDictionary() {
         const response = await fetch("script/data/words.json");
         if (!response.ok) return [];
         const data = await response.json();
-        const themes = data.general ?? {};
-        return Object.values(themes).flatMap(t => t.words ?? []);
+        return Array.isArray(data.words) ? data.words : [];
     } catch {
         return [];
     }

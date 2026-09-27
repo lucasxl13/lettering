@@ -2,6 +2,7 @@ import { t, getLanguage } from "../systems/language.js";
 import { getSession } from "../systems/auth.js";
 import { GENERAL_DECK_ID, MAX_CARDS, scheduleCard, dueCards } from "../systems/flashcards.js";
 import { getFlashcards, postFlashcardAction } from "../api/flashcardsApi.js";
+import { playEffect } from "../systems/audio-player.js";
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const button = (action, label, extra = "") => `<button type="button" data-action="${action}" ${extra}>${label}</button>`;
@@ -185,7 +186,7 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
         }
         if (action === "open-deck") { selectedId = id; editingId = null; deckTab = "words"; cardPage = 0; view = "edit"; }
         if (action === "study") { selectedId = id; if (!await startStudy()) return; }
-        if (action === "reveal") revealed = true;
+        if (action === "reveal") { revealed = true; playEffect("select", .45); }
         if (action === "refresh") activeCardId = null;
         if (action === "review-again") {
             if (!await startStudy("all")) return;
@@ -207,6 +208,7 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
             pendingReview ??= { action: "review", id: crypto.randomUUID(), sessionId: studySession.id,
                 cardId: activeCardId, version: currentDeck().cards.find(card => card.id === activeCardId).version, rating };
             if (!await commit(pendingReview)) return;
+            playEffect(["good", "easy"].includes(rating) ? "word" : "select", .5);
             statistics.totalReviews += 1;
             pendingReview = null;
             activeCardId = null; revealed = false; reviewed += 1;

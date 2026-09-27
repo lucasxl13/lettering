@@ -1,6 +1,7 @@
 import { t } from "../systems/language.js";
 import { THEMES, getTheme, setTheme } from "../systems/theme.js";
 import { getVolume, setVolume } from "../systems/audio-settings.js";
+import { RADIO_TRACKS, getRadioTrack, setRadioTrack } from "../systems/audio-player.js";
 import { registerModal } from "../systems/modal.js";
 import { exitFullscreen, isFullscreen, requestMobileFullscreen } from "../systems/fullscreen.js";
 
@@ -23,6 +24,16 @@ export function openSettings() {
                 ${createVolumeControl("effects", t("sound_effects"))}
             </div>
 
+            <div class="radio-settings">
+                <label for="radio-track">${t("radio_title")}</label>
+                <div class="radio-controls">
+                    <button type="button" class="radio-previous" aria-label="${t("radio_previous")}">&#9664;</button>
+                    <select id="radio-track">${RADIO_TRACKS.map(track => `<option value="${track.id}" ${track.id === getRadioTrack().id ? "selected" : ""}>${track.title}</option>`).join("")}</select>
+                    <button type="button" class="radio-next" aria-label="${t("radio_next")}">&#9654;</button>
+                </div>
+                <small class="radio-status" role="status"></small>
+            </div>
+
             <label class="settings-toggle">
                 <span>${t("fullscreen_mode")}</span>
                 <input class="settings-toggle-input" type="checkbox" ${isFullscreen() ? "checked" : ""}>
@@ -35,6 +46,21 @@ export function openSettings() {
 
     document.body.appendChild(overlay);
     const modal = registerModal(overlay, "settings");
+
+    const radio = overlay.querySelector("#radio-track");
+    const changeStation = direction => {
+        const index = RADIO_TRACKS.findIndex(track => track.id === getRadioTrack().id);
+        setRadioTrack(RADIO_TRACKS[(index + direction + RADIO_TRACKS.length) % RADIO_TRACKS.length].id);
+    };
+    radio.addEventListener("change", () => setRadioTrack(radio.value));
+    overlay.querySelector(".radio-previous").addEventListener("click", () => changeStation(-1));
+    overlay.querySelector(".radio-next").addEventListener("click", () => changeStation(1));
+    window.addEventListener("lettering-radio-change", () => { radio.value = getRadioTrack().id; }, { signal: modal.signal });
+    window.addEventListener("lettering-radio-status", event => {
+        overlay.querySelector(".radio-status").textContent = event.detail === "error"
+            ? t("radio_error")
+            : event.detail === "loading" ? t("radio_loading") : "";
+    }, { signal: modal.signal });
 
     updateActiveTheme(overlay);
 

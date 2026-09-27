@@ -46,15 +46,13 @@ const MODES = [
 ];
 
 const LEARNING_THEMES = [
-    { id: "animals", titleKey: "animals_theme" },
-    { id: "objects", titleKey: "objects_theme" },
     { id: "verbs", titleKey: "verbs_theme" },
-    { id: "food", titleKey: "food_theme" },
-    { id: "places", titleKey: "places_theme" },
+    { id: "nouns", titleKey: "nouns_theme" },
     { id: "adjectives", titleKey: "adjectives_theme" },
-    { id: "colors", titleKey: "colors_theme" },
-    { id: "nature", titleKey: "nature_theme" },
-    { id: "professions", titleKey: "professions_theme" }
+    { id: "objects", titleKey: "objects_theme" },
+    { id: "animals", titleKey: "animals_theme" },
+    { id: "food", titleKey: "food_theme" },
+    { id: "nature", titleKey: "nature_theme" }
 ];
 
 export function loadModes(onBack) {

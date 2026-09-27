@@ -21,6 +21,9 @@ export function setVolume(type, volume) {
         : DEFAULT_VOLUMES[type] ?? 100;
 
     localStorage.setItem(`lettering-volume-${type}`, String(safeVolume));
+    window.dispatchEvent(new CustomEvent("lettering-volume-change", {
+        detail: { type, volume: safeVolume }
+    }));
     return safeVolume;
 }
 

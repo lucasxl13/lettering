@@ -50,6 +50,8 @@
 .versus-board .board-cell, .versus-board .opponent-cell { min-width: 0; min-height: 0; display: grid; place-items: center; color: var(--text-color); background: rgba(255,255,255,.025); border: 1px solid rgba(var(--primary-rgb), .14); font: 700 clamp(14px, 1.6vw, 22px) var(--font-pixel); }
 .versus-board .board-cell.locked { background: color-mix(in srgb, var(--primary-color) 22%, var(--background)); border-color: rgba(var(--primary-rgb), .68); }
 .versus-board .board-cell.falling { color: var(--background); background: var(--primary-color); border-color: var(--primary-color); box-shadow: 0 0 13px rgba(var(--primary-rgb), .7); }
+.versus-board .board-cell.falling-left { animation: pieceSlideLeft 145ms cubic-bezier(.2, .9, .28, 1.18); }
+.versus-board .board-cell.falling-right { animation: pieceSlideRight 145ms cubic-bezier(.2, .9, .28, 1.18); }
 .versus-board .board-cell.word-match { cursor: pointer; background: var(--primary-color); border-color: #fff; animation: wordPulse 1s ease-in-out infinite alternate; }
 .versus-board .opponent-cell { border-color: rgba(255,82,119,.12); }
 .versus-board .opponent-cell.locked { color: #ffdbe3; background: color-mix(in srgb, var(--rival-color) 24%, var(--background)); border-color: rgba(255,82,119,.65); }
@@ -97,4 +99,4 @@
     .versus-controls p { text-align: left; }
     .join-room-box { grid-template-columns: 1fr; }
 }
-@media (prefers-reduced-motion: reduce) { .pulse-dot, .versus-live-dot, .versus-toast, .board-cell.word-match { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pulse-dot, .versus-live-dot, .versus-toast, .board-cell.word-match, .board-cell.falling-left, .board-cell.falling-right { animation: none; } }
