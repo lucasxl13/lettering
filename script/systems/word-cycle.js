@@ -1,7 +1,19 @@
-const ACTIVE_WORD_COUNT = 5;
-const DROP_INTERVALS = [0, 4, 10, 22, 46];
+const ACTIVE_WORD_COUNT = 3;
+const DROP_INTERVALS = [0, 4, 10, 22, 46, 70, 100];
+export const KNOWLEDGE_THRESHOLDS = [0, 1, 5, 10, 15, 20, 25];
+export const KNOWLEDGE_WEIGHTS = [100, 55, 30, 16, 8, 3, 0];
 const STORAGE_KEY = "lettering-word-progress-v1";
-const MIN_REAPPEARANCE_FACTOR = 0.08;
+const WORD_MASTERY_LEVEL = KNOWLEDGE_THRESHOLDS.length - 1;
+
+export function getKnowledgeLevel(successes) {
+    const safeSuccesses = Math.max(0, Math.floor(Number(successes) || 0));
+    let level = 0;
+    for (let index = 1; index < KNOWLEDGE_THRESHOLDS.length; index += 1) {
+        if (safeSuccesses < KNOWLEDGE_THRESHOLDS[index]) break;
+        level = index;
+    }
+    return level;
+}
 
 function shuffle(values) {
     const copy = [...values];
@@ -12,19 +24,15 @@ function shuffle(values) {
     return copy;
 }
 
-function understandingFactor(successes = 0) {
-    return Math.max(MIN_REAPPEARANCE_FACTOR, 0.92 ** (successes ** 2));
+export function getKnowledgeWeight(successes) {
+    return KNOWLEDGE_WEIGHTS[getKnowledgeLevel(successes)];
 }
 
-function shortWordShuffle(values, getSuccesses = () => 0, getBoost = () => 1) {
+function knowledgeShuffle(values, getSuccesses = () => 0) {
     const remaining = [...values];
     const result = [];
     while (remaining.length) {
-        const weights = remaining.map(word =>
-            Math.max(1, (10 - word.length) ** 2)
-            * understandingFactor(getSuccesses(word))
-            * getBoost(word)
-        );
+        const weights = remaining.map(word => getKnowledgeWeight(getSuccesses(word)));
         let draw = Math.random() * weights.reduce((sum, weight) => sum + weight, 0);
         let index = 0;
         while (index < weights.length - 1 && draw >= weights[index]) draw -= weights[index++];
@@ -41,11 +49,12 @@ export function createWordCycle(dictionary, theme = "general", excludedWords = [
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { /* Ignore unavailable storage. */ }
     const unique = [...new Set(candidates)];
-    const shuffled = shortWordShuffle(
-        unique,
-        word => saved[`${theme}:${word}`]?.successes ?? 0,
-        word => !saved[`${theme}:${word}`] ? 2
-            : saved[`${theme}:${word}`].dueAt <= Date.now() ? 3 : 1
+    const eligible = unique.filter(word =>
+        getKnowledgeWeight(saved[`${theme}:${word}`]?.successes ?? 0) > 0
+    );
+    const shuffled = knowledgeShuffle(
+        eligible,
+        word => saved[`${theme}:${word}`]?.successes ?? 0
     );
     const selected = shuffled.slice(0, ACTIVE_WORD_COUNT);
     return {
@@ -53,53 +62,42 @@ export function createWordCycle(dictionary, theme = "general", excludedWords = [
         dropNumber: 0,
         activeWords: selected.map((word, index) => ({
             word, theme,
-            level: Math.min(DROP_INTERVALS.length - 1, saved[`${theme}:${word}`]?.successes ?? 0),
+            level: getKnowledgeLevel(saved[`${theme}:${word}`]?.successes ?? 0),
             dueDrop: index, appearances: 0,
             successes: saved[`${theme}:${word}`]?.successes ?? 0
         }))
     };
 }
 
-function focusWord(cycle) {
-    return [...cycle.activeWords].sort((a, b) =>
-        Number(a.dueDrop > cycle.dropNumber) - Number(b.dueDrop > cycle.dropNumber)
-        || a.dueDrop - b.dueDrop || a.level - b.level || a.appearances - b.appearances
-    )[0];
-}
-
-function missingLetters(word, board) {
-    const counts = new Map();
-    board.flat().filter(Boolean).forEach(letter => counts.set(letter, (counts.get(letter) ?? 0) + 1));
-    return [...word].filter(letter => {
-        const count = counts.get(letter) ?? 0;
-        if (!count) return true;
-        counts.set(letter, count - 1);
-        return false;
-    });
-}
-
-export function createCycleLetterBatch(cycle, board, letterWeights, pickWeightedLetter) {
-    const focus = focusWord(cycle);
-    if (!focus) return [];
+export function createCycleLetterBatch(cycle, _board, letterWeights, pickWeightedLetter) {
+    if (!cycle.activeWords.length) return [];
     const options = [];
-    const pick = values => values[Math.floor(Math.random() * values.length)];
     const add = letter => { if (letter && !options.includes(letter)) options.push(letter); };
-    add(pick(missingLetters(focus.word, board)));
-    const others = cycle.activeWords.filter(item => item !== focus && item.dueDrop <= cycle.dropNumber);
-    if (others.length) add(pick([...pick(others).word]));
-    const available = [...new Set(cycle.activeWords.flatMap(item => [...item.word]))];
-    add(pick(available));
-    while (options.length < 4) {
-        const candidates = available.filter(letter => !options.includes(letter));
-        if (!candidates.length) break;
+    const availableLetters = [...letterWeights.keys()];
+    const addRandom = (vowelOnly = false) => {
+        const candidates = availableLetters.filter(letter =>
+            !options.includes(letter) && (!vowelOnly || "AEIOU".includes(letter))
+        );
+        if (!candidates.length) return;
         add(pickWeightedLetter(candidates, letterWeights));
+    };
+
+    const availableWords = [...cycle.activeWords];
+    const selectedWords = [];
+    while (selectedWords.length < 2 && availableWords.length) {
+        const index = Math.floor(Math.random() * availableWords.length);
+        selectedWords.push(availableWords.splice(index, 1)[0]);
     }
-    while (options.length < 4 && available.length) options.push(pick(available));
-    const availableVowels = available.filter(letter => "AEIOU".includes(letter));
-    if (!options.some(letter => "AEIOU".includes(letter)) && availableVowels.length) {
-        options[options.length - 1] = pick(availableVowels);
-    }
-    focus.appearances += 1;
+    selectedWords.forEach(item => {
+        const candidates = [...new Set(item.word)].filter(letter => !options.includes(letter));
+        if (candidates.length) {
+            add(candidates[Math.floor(Math.random() * candidates.length)]);
+        }
+        item.appearances += 1;
+    });
+    while (options.length < 3) addRandom(!options.some(letter => "AEIOU".includes(letter)));
+    while (options.length < 4) addRandom(!options.some(letter => "AEIOU".includes(letter)));
+
     cycle.dropNumber += 1;
     return shuffle(options);
 }
@@ -108,24 +106,25 @@ export function registerWordSuccess(cycle, formedWord, dictionary) {
     const active = cycle.activeWords.find(item => item.word === formedWord);
     if (!active) return false;
     active.successes += 1;
-    active.level = Math.min(DROP_INTERVALS.length - 1, active.successes);
+    active.level = getKnowledgeLevel(active.successes);
     saveProgress(active);
     const saved = readProgress();
     const used = new Set(cycle.activeWords.map(item => item.word));
-    const candidates = [...new Set(dictionary.map(entry => entry.word))].filter(word =>
-        /^[A-Z]+$/.test(word) && word.length >= 3 && word.length <= 9 && !used.has(word)
+    const unique = [...new Set(dictionary.map(entry => entry.word))];
+    const candidates = unique.filter(word =>
+        /^[A-Z]+$/.test(word) && word.length >= 3
+        && word.length <= 9 && !used.has(word)
+        && getKnowledgeWeight(saved[`${active.theme}:${word}`]?.successes ?? 0) > 0
     );
-    const replacement = shortWordShuffle(
+    const replacement = knowledgeShuffle(
         candidates,
-        word => saved[`${active.theme}:${word}`]?.successes ?? 0,
-        word => !saved[`${active.theme}:${word}`] ? 2
-            : saved[`${active.theme}:${word}`].dueAt <= Date.now() ? 3 : 1
+        word => saved[`${active.theme}:${word}`]?.successes ?? 0
     )[0];
     if (replacement) {
         const progress = saved[`${active.theme}:${replacement}`];
         Object.assign(active, {
             word: replacement,
-            level: Math.min(DROP_INTERVALS.length - 1, progress?.successes ?? 0),
+            level: getKnowledgeLevel(progress?.successes ?? 0),
             dueDrop: Math.max(...cycle.activeWords.map(item => item.dueDrop)) + 1,
             appearances: 0,
             successes: progress?.successes ?? 0

@@ -103,13 +103,34 @@ export function loadModes(onBack) {
                     ${createFlashcardDeckLabel(selectedFlashcardDeckId, flashcardDecks)}
                 </button>
 
-                <button
-                    class="mode-menu-button flashcards-menu-button ${selectedMode.id === "flashcards" ? "" : "hidden"}"
-                    id="flashcards-statistics-button"
-                    ${session ? "" : "disabled"}
-                >
-                    ${t("statistics")}
-                </button>
+                <div class="flashcards-tools ${selectedMode.id === "flashcards" ? "" : "hidden"}">
+                    <button
+                        class="mode-menu-button flashcards-menu-button"
+                        id="flashcards-create-button"
+                        ${session ? "" : "disabled"}
+                    >
+                        <span class="flashcards-tool-icon" aria-hidden="true">+</span>
+                        <span>${t("fc_create")}</span>
+                    </button>
+
+                    <button
+                        class="mode-menu-button flashcards-menu-button"
+                        id="flashcards-shop-button"
+                        ${session ? "" : "disabled"}
+                    >
+                        <span class="flashcards-tool-icon" aria-hidden="true">◇</span>
+                        <span>${t("fc_shop")}</span>
+                    </button>
+
+                    <button
+                        class="mode-menu-button flashcards-menu-button"
+                        id="flashcards-statistics-button"
+                        ${session ? "" : "disabled"}
+                    >
+                        <span class="flashcards-tool-icon" aria-hidden="true">↗</span>
+                        <span>${t("statistics")}</span>
+                    </button>
+                </div>
 
                 <button class="mode-menu-button" id="back-to-menu">
                     ${t("back")}
@@ -148,8 +169,11 @@ export function loadModes(onBack) {
         },
         () => loadFlashcards(() => loadModes(onBack))
     ));
+    document.getElementById("flashcards-create-button").addEventListener("click", () => loadFlashcards(() => loadModes(onBack), "create"));
     document.getElementById("flashcards-statistics-button").addEventListener("click", () => loadFlashcards(() => loadModes(onBack), "statistics"));
+    document.getElementById("flashcards-shop-button").addEventListener("click", () => loadFlashcards(() => loadModes(onBack), "shop"));
     const flashcardsMenuButtons = document.querySelectorAll(".flashcards-menu-button");
+    const flashcardsTools = document.querySelector(".flashcards-tools");
 
     playButton.addEventListener("click", () => {
         if (selectedMode.id === "flashcards") {
@@ -199,8 +223,11 @@ export function loadModes(onBack) {
             playButton.innerHTML = createPlayLabel(mode);
             themeButton.classList.toggle("hidden", mode.id !== "learning");
             rankingButton.classList.toggle("hidden", ["flashcards", "versus"].includes(mode.id));
+            flashcardsTools.classList.toggle("hidden", mode.id !== "flashcards");
             flashcardsMenuButtons.forEach(button => {
-                button.classList.toggle("hidden", mode.id !== "flashcards");
+                if (button.id === "flashcards-decks-button") {
+                    button.classList.toggle("hidden", mode.id !== "flashcards");
+                }
             });
         });
     });

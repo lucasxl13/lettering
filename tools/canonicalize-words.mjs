@@ -8,6 +8,7 @@ const words = new Map();
 
 for (const theme of themeOrder) {
     for (const entry of source.general?.[theme]?.words ?? []) {
+        if (entry.word.length < 3) continue;
         let canonical = words.get(entry.word);
         if (!canonical) {
             canonical = {

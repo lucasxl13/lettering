@@ -196,6 +196,65 @@
     justify-content: center;
 }
 
+.flashcards-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.flashcards-tools.hidden {
+    display: none;
+}
+
+.flashcards-tools .mode-menu-button {
+    min-width: 0;
+    min-height: 72px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: center;
+    justify-items: start;
+    gap: 10px;
+    padding: 12px 14px;
+    text-align: left;
+    font-size: clamp(13px, 1.6vw, 15px);
+    line-height: 1.15;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--surface-color) 88%, var(--primary-color)), var(--surface-color));
+}
+
+.flashcards-tool-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    color: var(--primary-color);
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1;
+    border: 1px solid color-mix(in srgb, var(--primary-color) 55%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+#flashcards-statistics-button {
+    grid-column: 1 / -1;
+    min-height: 48px;
+    grid-template-columns: auto auto;
+    justify-content: center;
+    justify-items: center;
+    padding-block: 10px;
+    text-align: center;
+    background: color-mix(in srgb, var(--surface-color) 94%, var(--primary-color));
+}
+
+#flashcards-statistics-button .flashcards-tool-icon {
+    width: auto;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 16px;
+}
+
 .mode-button-kicker {
     color: var(--muted-text-color);
     font-size: 10px;
@@ -296,6 +355,15 @@
 }
 
 @media (max-width: 520px) {
+    .flashcards-tools { gap: 8px; }
+    .flashcards-tools .mode-menu-button {
+        grid-template-columns: 32px minmax(0, 1fr);
+        gap: 8px;
+        padding-inline: 10px;
+        font-size: 12px;
+    }
+    .flashcards-tool-icon { width: 30px; height: 30px; }
+    #flashcards-statistics-button { grid-template-columns: auto auto; }
     .flashcard-selector-actions { grid-template-columns: 1fr; }
     .flashcard-selector-actions .manage-flashcard-decks { order: -1; }
     .flashcard-deck-option { grid-template-columns: 42px minmax(0, 1fr) 24px; }

@@ -1,5 +1,5 @@
 .classic-screen {
-    --board-overhead: 136px;
+    --board-overhead: 192px;
     --max-board-height: calc(100dvh - var(--board-overhead));
     --classic-board-width: clamp(320px, calc(var(--max-board-height) * 0.9), 580px);
     width: 100%;
@@ -56,6 +56,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .board-header {
@@ -105,6 +106,240 @@
 
 .board-time {
     text-align: right;
+}
+
+.combo-stat strong.active {
+    color: var(--text-color);
+    text-shadow: 0 0 10px rgba(var(--primary-rgb), .9);
+    animation: comboPulse .7s ease-in-out infinite alternate;
+}
+
+.combo-stat {
+    position: relative;
+    padding-bottom: 12px;
+}
+
+.combo-time-bar {
+    position: absolute;
+    right: 10px;
+    bottom: 4px;
+    left: 10px;
+    height: 3px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .12);
+    border-radius: 999px;
+    opacity: 0;
+    transition: opacity .2s ease;
+}
+
+.combo-stat.chaining .combo-time-bar {
+    opacity: 1;
+}
+
+.combo-time-bar i {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--primary-color);
+    border-radius: inherit;
+    box-shadow: 0 0 7px rgba(var(--primary-rgb), .9);
+    transition: width .9s linear, background-color .2s ease;
+}
+
+.combo-stat.combo-warning strong {
+    color: #ff654f;
+    text-shadow: 0 0 10px rgba(255, 72, 48, .9);
+    animation: comboWarning .38s ease-in-out infinite alternate;
+}
+
+.combo-stat.combo-warning .combo-time-bar i {
+    background: #ff654f;
+    animation: comboWarning .38s ease-in-out infinite alternate;
+}
+
+@keyframes comboPulse {
+    to { transform: scale(1.12); }
+}
+
+@keyframes comboWarning {
+    to { opacity: .45; }
+}
+
+.combo-burst-layer {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 12;
+}
+
+.combo-burst {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: 190px;
+    padding: 18px 28px;
+    color: white;
+    line-height: 1;
+    text-align: center;
+    text-shadow:
+        0 3px 0 color-mix(in srgb, var(--combo-accent) 55%, black),
+        0 0 18px var(--combo-accent);
+    transform: rotate(var(--combo-tilt)) scale(.25);
+    opacity: 0;
+    filter: drop-shadow(0 7px 0 rgba(0, 0, 0, .3));
+    animation: fruitComboBurst 1.1s cubic-bezier(.17, .84, .3, 1) forwards;
+}
+
+.combo-burst::before,
+.combo-burst::after {
+    content: "";
+    position: absolute;
+    width: 135%;
+    height: 5px;
+    background: var(--combo-accent);
+    box-shadow: 0 0 16px var(--combo-accent);
+    transform: rotate(-12deg);
+    z-index: -1;
+}
+
+.combo-burst::after {
+    transform: rotate(15deg);
+}
+
+.combo-burst span {
+    color: var(--combo-accent);
+    font-size: clamp(17px, 3vw, 25px);
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+
+.combo-burst strong {
+    font-size: clamp(58px, 10vw, 92px);
+    font-style: italic;
+    letter-spacing: -5px;
+}
+
+.combo-burst small {
+    color: white;
+    font-size: clamp(15px, 2vw, 21px);
+    letter-spacing: 1px;
+}
+
+.classic-screen.combo-hit .classic-board {
+    animation: boardComboHit .42s ease-out;
+}
+
+.combo-score-hit {
+    animation: scoreComboHit .48s cubic-bezier(.18, .9, .3, 1.45);
+}
+
+@keyframes fruitComboBurst {
+    0% { opacity: 0; transform: rotate(var(--combo-tilt)) scale(.25); }
+    22% { opacity: 1; transform: rotate(var(--combo-tilt)) scale(1.18); }
+    48% { opacity: 1; transform: rotate(var(--combo-tilt)) scale(1); }
+    82% { opacity: 1; transform: rotate(var(--combo-tilt)) scale(1); }
+    100% { opacity: 0; transform: rotate(var(--combo-tilt)) scale(1.3); }
+}
+
+@keyframes boardComboHit {
+    45% {
+        filter: brightness(1.2);
+        box-shadow: 0 0 34px var(--combo-accent);
+        transform: scale(1.012);
+    }
+}
+
+@keyframes scoreComboHit {
+    50% {
+        color: var(--combo-accent);
+        transform: scale(1.35) rotate(-4deg);
+    }
+}
+
+.power-toolbar {
+    min-height: 54px;
+    display: grid;
+    grid-template-columns: minmax(64px, .8fr) repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+    background: color-mix(in srgb, var(--primary-color) 6%, var(--background));
+    border: 2px solid rgba(var(--primary-rgb), .65);
+    border-bottom: 0;
+}
+
+.power-progress {
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    color: var(--muted-text-color);
+    font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+    font-size: 9px;
+    text-align: center;
+    text-transform: none;
+}
+
+.power-progress strong {
+    color: var(--primary-color);
+    font-family: var(--font-pixel);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.power-button {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    color: var(--primary-color);
+    cursor: pointer;
+    background: color-mix(in srgb, var(--primary-color) 10%, var(--background));
+    border: 1px solid rgba(var(--primary-rgb), .38);
+    transition: transform .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+
+.power-button:not(:disabled):hover,
+.power-button.armed {
+    background: color-mix(in srgb, var(--primary-color) 25%, var(--background));
+    box-shadow: 0 0 12px rgba(var(--primary-rgb), .45);
+    transform: translateY(-1px);
+}
+
+.power-button.armed {
+    color: var(--background);
+    background: var(--primary-color);
+}
+
+.power-button:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.power-icon {
+    font-family: var(--font-pixel);
+    font-size: 16px;
+}
+
+.power-count {
+    min-width: 19px;
+    height: 19px;
+    display: grid;
+    place-items: center;
+    color: var(--background);
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    background: var(--primary-color);
+    border-radius: 50%;
+}
+
+.power-button.armed .power-count {
+    color: var(--primary-color);
+    background: var(--background);
 }
 
 .pause-trigger {
@@ -308,6 +543,19 @@
     .board-cell.falling-right::after {
         display: none;
     }
+
+    .combo-burst,
+    .classic-screen.combo-hit .classic-board,
+    .combo-score-hit,
+    .combo-stat.combo-warning strong,
+    .combo-stat.combo-warning .combo-time-bar i {
+        animation: none;
+    }
+
+    .combo-burst {
+        opacity: 1;
+        transform: rotate(var(--combo-tilt));
+    }
 }
 
 .board-cell.word-match {
@@ -429,6 +677,22 @@
     font-size: clamp(25px, 6vw, 38px);
 }
 
+.match-xp-award {
+    display: grid;
+    gap: 5px;
+    margin: 4px 0 14px;
+    padding: 10px 14px;
+    color: var(--muted-text-color);
+    background: rgba(var(--primary-rgb), .1);
+    border: 1px solid rgba(var(--primary-rgb), .55);
+    border-radius: 10px;
+}
+
+.match-xp-award strong {
+    color: #fff;
+    font-size: 20px;
+}
+
 .pause-button {
     min-height: 50px;
     color: var(--text-color);
@@ -528,15 +792,15 @@
     }
 
     .board-stat {
-        padding: 7px 8px;
+        padding: 7px 5px;
     }
 
     .board-stat span {
-        font-size: 10px;
+        font-size: 8px;
     }
 
     .board-stat strong {
-        font-size: 17px;
+        font-size: 15px;
     }
 
     .board-lives {
@@ -557,6 +821,20 @@
     .current-batch {
         min-height: 54px;
         gap: 8px;
+    }
+
+    .power-toolbar {
+        min-height: 48px;
+        gap: 4px;
+        padding: 4px;
+    }
+
+    .power-progress span {
+        display: none;
+    }
+
+    .power-icon {
+        font-size: 14px;
     }
 
     .current-letter {
@@ -655,7 +933,7 @@
 
 @media (min-width: 851px) and (max-height: 800px) {
     .classic-screen {
-        --board-overhead: 106px;
+        --board-overhead: 154px;
         padding: clamp(6px, 1.2vh, 10px);
     }
 
@@ -693,6 +971,11 @@
         min-height: 44px;
         padding: 4px;
         gap: 6px;
+    }
+
+    .power-toolbar {
+        min-height: 44px;
+        padding: 4px;
     }
 
     .current-letter {
@@ -741,7 +1024,7 @@
 
 @media (min-width: 851px) and (max-height: 650px) {
     .classic-screen {
-        --board-overhead: 88px;
+        --board-overhead: 126px;
         padding: 5px;
     }
 
@@ -779,6 +1062,17 @@
         min-height: 38px;
         padding: 2px;
         gap: 4px;
+    }
+
+    .power-toolbar {
+        min-height: 36px;
+        padding: 2px;
+    }
+
+    .power-count {
+        min-width: 16px;
+        height: 16px;
+        font-size: 8px;
     }
 
     .current-letter {

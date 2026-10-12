@@ -5,6 +5,7 @@ import { openSettings } from "./settings.js";
 import { loadModes } from "./modes.js";
 import { openGuestWarning } from "./guest-warning.js";
 import { startGridEffects } from "../systems/grid-effects.js";
+import { toRomanLevel } from "../systems/progression-format.js";
 
 const TITLE = "LETTERING";
 const LANGUAGES = [
@@ -81,16 +82,65 @@ function createAccountCard(session, userName) {
 
     const safeName = escapeHtml(userName);
     const initial = escapeHtml(userName.trim().charAt(0).toUpperCase() || "U");
+    const progression = normalizeProgression(session.user?.progression);
+    const progress = Math.min(
+        100,
+        Math.max(0, progression.currentLevelXp / progression.xpForNextLevel * 100)
+    );
+    const romanLevel = toRomanLevel(progression.level);
+    const progressPercentage = formatProgressPercentage(progress);
+    const prestige = progression.prestige > 0
+        ? `<span class="prestige-badge" title="${t("prestige")}">✦${progression.prestige}</span>`
+        : "";
 
     return `
         <div class="account-card">
             <div class="user-avatar" aria-hidden="true">${initial}</div>
             <div class="user-details">
-                <strong>${safeName}</strong>
+                <div class="user-name-row">
+                    <div class="user-identity">
+                        <strong>${safeName}</strong>
+                        ${prestige}
+                    </div>
+                </div>
+                <div class="level-progress-wrap">
+                    <div
+                        class="level-progress"
+                        role="progressbar"
+                        aria-label="${t("level")} ${progression.level}: ${progression.currentLevelXp}/${progression.xpForNextLevel} XP"
+                        aria-valuemin="0"
+                        aria-valuemax="${progression.xpForNextLevel}"
+                        aria-valuenow="${progression.currentLevelXp}"
+                    >
+                        <span class="level-progress-fill" style="width: ${progress}%"></span>
+                        <span class="level-progress-label" aria-hidden="true">${romanLevel} (${progressPercentage}%)</span>
+                    </div>
+                </div>
             </div>
             <button id="logout-button">${t("logout")}</button>
         </div>
     `;
+}
+
+function formatProgressPercentage(value) {
+    return new Intl.NumberFormat(getLanguage(), {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    }).format(value);
+}
+
+function normalizeProgression(value) {
+    const level = Math.max(1, Math.floor(Number(value?.level) || 1));
+    const xpForNextLevel = Math.max(1, Math.floor(Number(value?.xpForNextLevel) || 100));
+    return {
+        level,
+        currentLevelXp: Math.min(
+            xpForNextLevel,
+            Math.max(0, Math.floor(Number(value?.currentLevelXp) || 0))
+        ),
+        xpForNextLevel,
+        prestige: Math.max(0, Math.floor(Number(value?.prestige) || 0))
+    };
 }
 
 function createLanguageButton(language) {

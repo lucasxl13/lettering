@@ -396,6 +396,7 @@ if (baseVerbs.length < 300) throw new Error(`Expected at least 300 base verbs, f
 const expandedWords = new Map();
 baseVerbs.forEach((entry) => {
     verbVariants(entry.word).forEach(({ word, form }) => {
+        if (word.length < 3) return;
         if (expandedWords.has(word)) return;
         expandedWords.set(word, {
             word,

@@ -1,9 +1,18 @@
 import { getLanguage, t } from "../systems/language.js";
 import { startGridEffects } from "../systems/grid-effects.js";
-import { getSession } from "../systems/auth.js";
+import { applyProgressionAward, getSession } from "../systems/auth.js";
 import { ApiRequestError } from "../api/apiClient.js";
 import { playEffect } from "../systems/audio-player.js";
 import { createCycleLetterBatch, createWordCycle, registerWordSuccess } from "../systems/word-cycle.js";
+import {
+    applyPowerToBoard,
+    COMBO_WINDOW_MS,
+    createGameplayState,
+    POWER_TYPES,
+    registerCombo,
+    registerTargetWord,
+    releasePendingPower
+} from "../systems/power-ups.js";
 import {
     getMatches,
     getMatchState,
@@ -11,6 +20,7 @@ import {
     postMatch,
     postMatchPiece,
     postConfirmMatchWord,
+    postUseMatchPower,
     postPauseMatch,
     postResumeMatch
 } from "../api/matchesApi.js";
@@ -19,6 +29,7 @@ const BOARD_ROWS = 10;
 const BOARD_COLUMNS = 9;
 const PIECE_SIZE = 4;
 const VOWELS = new Set(["A", "E", "I", "O", "U"]);
+const COMBO_WARNING_MS = 5_000;
 
 export async function loadClassic(onBack, options = {}) {
     const app = document.getElementById("app");
@@ -75,6 +86,10 @@ export async function loadClassic(onBack, options = {}) {
     const initialGuestLives = mode === "hardcore" ? 1 : 3;
     let lives = authenticated ? initialSnapshot.match.player.livesRemaining : initialGuestLives;
     let score = authenticated ? initialSnapshot.match.player.score : 0;
+    let gameplayState = createGameplayState(
+        authenticated ? initialSnapshot.match.gameplayState : undefined
+    );
+    let comboExpiresAt = gameplayState.comboMultiplier > 0 ? Date.now() + COMBO_WINDOW_MS : 0;
     let pendingWord = authenticated && initialSnapshot.match.pendingWord
         ? normalizeServerWord(initialSnapshot.match.pendingWord)
         : null;
@@ -102,6 +117,14 @@ export async function loadClassic(onBack, options = {}) {
                             <strong id="score">${score}</strong>
                         </div>
 
+                        <div class="board-stat combo-stat" aria-label="${t("combo")}">
+                            <span>${t("combo")}</span>
+                            <strong id="combo-multiplier">${formatCombo(gameplayState.comboMultiplier)}</strong>
+                            <span class="combo-time-bar" aria-hidden="true">
+                                <i id="combo-time-fill"></i>
+                            </span>
+                        </div>
+
                         <div class="board-lives" aria-label="${t("lives")}">
                             <span>${t("lives")}:</span>
                             <strong id="lives-count">${lives}</strong>
@@ -122,6 +145,10 @@ export async function loadClassic(onBack, options = {}) {
                         </button>
                     </header>
 
+                    <div class="power-toolbar" id="power-toolbar" aria-label="${t("power_ups")}">
+                        ${createPowerToolbar(gameplayState)}
+                    </div>
+
                     <div class="current-batch" aria-label="${t("piece_letters")}">
                         ${createCurrentBatch(currentBatch, selectedLetterIndex)}
                     </div>
@@ -139,6 +166,7 @@ export async function loadClassic(onBack, options = {}) {
                     >
                         ${createBoardCells()}
                     </div>
+                    <div class="combo-burst-layer" id="combo-burst-layer" aria-live="polite"></div>
                 </section>
 
                 <aside class="found-words-panel">
@@ -162,6 +190,11 @@ export async function loadClassic(onBack, options = {}) {
     const timeDisplay = document.getElementById("elapsed-time");
     const livesDisplay = document.getElementById("lives-count");
     const scoreDisplay = document.getElementById("score");
+    const comboDisplay = document.getElementById("combo-multiplier");
+    const comboStat = document.querySelector(".combo-stat");
+    const comboTimeFill = document.getElementById("combo-time-fill");
+    const comboBurstLayer = document.getElementById("combo-burst-layer");
+    const powerToolbar = document.getElementById("power-toolbar");
     const foundWordsCount = document.getElementById("found-words-count");
     const foundWordsList = document.getElementById("found-words-list");
     const boardCells = [...document.querySelectorAll(".board-cell")];
@@ -174,6 +207,13 @@ export async function loadClassic(onBack, options = {}) {
     let touchAccelerationQueued = false;
     let ignoreNextBoardClick = false;
     let lastTouchInteraction = 0;
+
+    powerToolbar.addEventListener("click", event => {
+        const button = event.target.closest("[data-power]");
+        if (!button || button.disabled || gameEnded || paused || requestPending) return;
+        const type = button.dataset.power;
+        void usePower(type);
+    });
 
     currentBatchElement.addEventListener("click", event => {
         if (gameEnded) return;
@@ -304,6 +344,105 @@ export async function loadClassic(onBack, options = {}) {
         wordCycleElement.innerHTML = createWordCycleMarkup(wordCycle);
     }
 
+    function renderPowerToolbar() {
+        powerToolbar.innerHTML = createPowerToolbar(gameplayState);
+    }
+
+    function renderCombo(showBurst = false, points = 0) {
+        const multiplier = gameplayState.comboMultiplier;
+        const remaining = Math.max(0, comboExpiresAt - Date.now());
+        const progress = Math.min(100, remaining / COMBO_WINDOW_MS * 100);
+        comboDisplay.textContent = formatCombo(gameplayState.comboMultiplier);
+        comboDisplay.classList.toggle("active", multiplier > 1);
+        comboStat.classList.toggle("chaining", multiplier > 0 && remaining > 0);
+        comboStat.classList.toggle(
+            "combo-warning",
+            multiplier > 0 && remaining > 0 && remaining <= COMBO_WARNING_MS
+        );
+        comboTimeFill.style.width = `${progress}%`;
+
+        if (showBurst && multiplier > 1) showComboBurst(multiplier, points);
+    }
+
+    function showComboBurst(multiplier, points) {
+        const labelKey = multiplier >= 8
+            ? "ultra_combo"
+            : multiplier >= 6
+                ? "mega_combo"
+                : multiplier >= 4
+                    ? "super_combo"
+                    : "combo";
+        const accent = multiplier >= 8
+            ? "#ff4fb3"
+            : multiplier >= 6
+                ? "#ff7a30"
+                : multiplier >= 4
+                    ? "#ffe047"
+                    : "var(--primary-color)";
+        const burst = document.createElement("div");
+        burst.className = "combo-burst";
+        burst.style.setProperty("--combo-accent", accent);
+        burst.style.setProperty("--combo-tilt", `${(Math.random() * 10 - 5).toFixed(1)}deg`);
+        burst.innerHTML = `
+            <span>${t(labelKey)}</span>
+            <strong>${multiplier}x</strong>
+            <small>+${Math.max(0, Math.floor(Number(points) || 0))}</small>
+        `;
+        comboBurstLayer.replaceChildren(burst);
+
+        screen.style.setProperty("--combo-accent", accent);
+        screen.classList.remove("combo-hit");
+        void screen.offsetWidth;
+        screen.classList.add("combo-hit");
+        scoreDisplay.classList.remove("combo-score-hit");
+        void scoreDisplay.offsetWidth;
+        scoreDisplay.classList.add("combo-score-hit");
+        window.setTimeout(() => {
+            burst.remove();
+            screen.classList.remove("combo-hit");
+            scoreDisplay.classList.remove("combo-score-hit");
+        }, 1_150);
+    }
+
+    async function usePower(type) {
+        if (!POWER_TYPES.includes(type) || gameplayState.powers[type] < 1) return;
+        if (authenticated) {
+            requestPending = true;
+            try {
+                const result = await postUseMatchPower(matchId, {
+                    type,
+                    boardVersion
+                });
+                boardVersion = result.boardVersion;
+                fillBoardFromCells(board, result.board.cells);
+                gameplayState = createGameplayState(result.gameplayState);
+                pendingWord = null;
+            } catch (error) {
+                if (error instanceof ApiRequestError && error.code === "STALE_BOARD_VERSION") {
+                    try {
+                        applyAuthenticatedSnapshot(await getMatchState(matchId));
+                    } catch (syncError) {
+                        showMatchConnectionError(syncError);
+                    }
+                } else {
+                    showMatchConnectionError(error);
+                }
+                return;
+            } finally {
+                requestPending = false;
+            }
+        } else {
+            const result = applyPowerToBoard(board, type);
+            if (!result.used) return;
+            gameplayState.powers[type] -= 1;
+            releasePendingPower(gameplayState);
+            pendingWord = null;
+        }
+        playEffect("word", .6);
+        renderPowerToolbar();
+        renderBoard();
+    }
+
     function selectNextLetter() {
         if (gameEnded || requestPending || currentBatch.length === 0) return;
         selectedLetterIndex = (selectedLetterIndex + 1) % PIECE_SIZE;
@@ -371,6 +510,7 @@ export async function loadClassic(onBack, options = {}) {
         }
 
         const reachedTop = activeBlock.row === 0;
+        const placedCell = { row: activeBlock.row, column: activeBlock.column };
         board[activeBlock.row][activeBlock.column] = getOptionLetter(
             currentBatch[selectedLetterIndex]
         );
@@ -397,7 +537,7 @@ export async function loadClassic(onBack, options = {}) {
         activeBlock.row = 0;
         renderCurrentBatch();
 
-        pendingWord = findBestWord(board, dictionary);
+        pendingWord = findBestWord(board, dictionary, placedCell);
         renderBoard();
     }
 
@@ -436,7 +576,10 @@ export async function loadClassic(onBack, options = {}) {
             renderFoundWords();
             renderBoard();
 
-            if (result.gameOver) showGameOver();
+            if (result.gameOver) {
+                applyProgressionAward(result.progressionAward);
+                showGameOver(result.progressionAward);
+            }
         } catch (error) {
             if (error instanceof ApiRequestError && error.code === "STALE_BOARD_VERSION") {
                 try {
@@ -463,6 +606,8 @@ export async function loadClassic(onBack, options = {}) {
         fillBoardFromCells(board, snapshot.match.board.cells);
         currentBatch = snapshot.match.letterOptions;
         wordCycle = snapshot.match.wordCycle ?? wordCycle;
+        gameplayState = createGameplayState(snapshot.match.gameplayState);
+        comboExpiresAt = gameplayState.comboMultiplier > 0 ? Date.now() + COMBO_WINDOW_MS : 0;
         selectedLetterIndex = 0;
         activeBlock.row = 0;
         score = snapshot.match.player.score;
@@ -488,6 +633,8 @@ export async function loadClassic(onBack, options = {}) {
         updateFoundWordsCount();
         renderCurrentBatch();
         renderWordCycle();
+        renderPowerToolbar();
+        renderCombo();
         renderFoundWords();
         renderBoard();
     }
@@ -532,7 +679,7 @@ export async function loadClassic(onBack, options = {}) {
             return;
         }
 
-        if ((key === "r" || key === "w") && !paused) {
+        if (key === "q" && !paused) {
             selectNextLetter();
             event.preventDefault();
             return;
@@ -542,6 +689,13 @@ export async function loadClassic(onBack, options = {}) {
 
         if (event.code === "Space" && pendingWord) {
             confirmPendingWord();
+            event.preventDefault();
+            return;
+        }
+
+        if (key === "e") {
+            const availablePower = POWER_TYPES.find(type => gameplayState.powers[type] > 0);
+            if (availablePower && !requestPending) void usePower(availablePower);
             event.preventDefault();
             return;
         }
@@ -564,8 +718,14 @@ export async function loadClassic(onBack, options = {}) {
             return;
         }
 
-        const points = pendingWord.entry.score
+        const isChosenWord = wordCycle?.activeWords.some(
+            item => item.word === pendingWord.word
+        ) ?? false;
+        const basePoints = pendingWord.entry.score
             ?? pendingWord.word.length * 10;
+        const comboMultiplier = registerCombo(gameplayState);
+        comboExpiresAt = Date.now() + COMBO_WINDOW_MS;
+        const points = basePoints * comboMultiplier;
 
         if (pendingWord.direction === "horizontal") {
             board.splice(pendingWord.line, 1);
@@ -584,9 +744,12 @@ export async function loadClassic(onBack, options = {}) {
         if (thematicWords.has(pendingWord.word)) thematicFoundWords.add(pendingWord.word);
         if (wordCycle) {
             registerWordSuccess(wordCycle, pendingWord.word, cycleDictionary);
+            if (isChosenWord) registerTargetWord(gameplayState);
             renderWordCycle();
         }
         scoreDisplay.textContent = String(score);
+        renderCombo(true, points);
+        renderPowerToolbar();
         updateFoundWordsCount();
         pendingWord = null;
 
@@ -607,6 +770,10 @@ export async function loadClassic(onBack, options = {}) {
             playEffect("word", .75);
             const confirmedWord = normalizeServerWord(result.confirmedWord);
             wordCycle = result.wordCycle ?? wordCycle;
+            gameplayState = result.gameplayState
+                ? createGameplayState(result.gameplayState)
+                : gameplayState;
+            comboExpiresAt = Date.now() + COMBO_WINDOW_MS;
             if (!foundWords.some(item => item.word === confirmedWord.word)) {
                 foundWords.unshift(confirmedWord);
             }
@@ -614,12 +781,17 @@ export async function loadClassic(onBack, options = {}) {
             pendingWord = null;
 
             scoreDisplay.textContent = String(score);
+            renderCombo(true, result.confirmedWord.pointsEarned);
+            renderPowerToolbar();
             updateFoundWordsCount();
             renderFoundWords();
             renderWordCycle();
             renderBoard();
             // Em partidas autenticadas, somente o servidor encerra o objetivo.
-            if (result.completed) showVictory();
+            if (result.completed) {
+                applyProgressionAward(result.progressionAward);
+                showVictory(result.progressionAward);
+            }
         } catch (error) {
             if (error instanceof ApiRequestError && error.code === "STALE_BOARD_VERSION") {
                 try {
@@ -642,7 +814,7 @@ export async function loadClassic(onBack, options = {}) {
             return;
         }
 
-        foundWordsList.innerHTML = foundWords.map(item => `
+        foundWordsList.innerHTML = foundWords.slice(0, 10).map(item => `
             <article class="found-word-item">
                 <div>
                     <strong>${item.word}</strong>
@@ -664,7 +836,7 @@ export async function loadClassic(onBack, options = {}) {
         showVictory();
     }
 
-    function showVictory() {
+    function showVictory(progressionAward = null) {
         gameEnded = true;
         paused = true;
         stopGame();
@@ -677,6 +849,7 @@ export async function loadClassic(onBack, options = {}) {
                 <h2 id="victory-title">${t("thematic_victory")}</h2>
                 <p>${t("thematic_victory_message").replace("{count}", String(wordTarget))}</p>
                 <strong class="victory-time">${formatTime(elapsedSeconds)}</strong>
+                ${createProgressionAwardMarkup(progressionAward)}
                 <button class="pause-button" id="restart-after-victory">${t("restart")}</button>
                 <button class="pause-button" id="leave-after-victory">${t("leave_game")}</button>
             </section>
@@ -807,7 +980,7 @@ export async function loadClassic(onBack, options = {}) {
         paused = false;
     }
 
-    function showGameOver() {
+    function showGameOver(progressionAward = null) {
         if (gameEnded) return;
         gameEnded = true;
         paused = true;
@@ -819,6 +992,7 @@ export async function loadClassic(onBack, options = {}) {
         overlay.innerHTML = `
             <section class="game-over-menu" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
                 <h2 id="game-over-title">${t("game_over")}</h2>
+                ${createProgressionAwardMarkup(progressionAward)}
                 <button class="pause-button" id="restart-after-game-over">${t("restart")}</button>
                 <button class="pause-button" id="leave-after-game-over">${t("leave_game")}</button>
             </section>
@@ -835,6 +1009,15 @@ export async function loadClassic(onBack, options = {}) {
             overlay.remove();
             onBack?.();
         });
+    }
+
+    function createProgressionAwardMarkup(award) {
+        if (!award?.progression) return "";
+        return `
+            <div class="match-xp-award" aria-live="polite">
+                <strong>${t("xp_earned").replace("{xp}", String(award.xpAwarded))}</strong>
+            </div>
+        `;
     }
 
     function stopGame() {
@@ -854,6 +1037,8 @@ export async function loadClassic(onBack, options = {}) {
     updateFoundWordsCount();
     if (foundWords.length > 0) renderFoundWords();
     renderBoard();
+    renderPowerToolbar();
+    renderCombo();
     startGridEffects(screen);
 
     const timer = window.setInterval(() => {
@@ -868,6 +1053,13 @@ export async function loadClassic(onBack, options = {}) {
 
         elapsedSeconds += 1;
         timeDisplay.textContent = formatTime(elapsedSeconds);
+        if (gameplayState.comboMultiplier > 0) {
+            if (Date.now() > comboExpiresAt) {
+                gameplayState.comboMultiplier = 0;
+                gameplayState.lastWordAt = null;
+            }
+            renderCombo();
+        }
     }, 1000);
 
     const gravity = window.setInterval(() => {
@@ -1009,6 +1201,32 @@ function createCurrentBatch(letters, selectedIndex) {
     `).join("");
 }
 
+function createPowerToolbar(state) {
+    const definitions = [
+        ["clearRow", "↔", "power_clear_row"],
+        ["clearColumn", "↕", "power_clear_column"],
+        ["clearLetter", "A×", "power_clear_letter"],
+        ["clearAll", "✦", "power_clear_all"]
+    ];
+    const progress = `
+        <div class="power-progress" title="${t("power_progress")}">
+            <span>${t("power_progress")}</span>
+            <strong>${state.targetWordsTowardPower}/5</strong>
+        </div>`;
+    return progress + definitions.map(([type, icon, labelKey]) => `
+        <button class="power-button"
+            type="button" data-power="${type}" ${state.powers[type] < 1 ? "disabled" : ""}
+            title="${t(labelKey)}" aria-label="${t(labelKey)}: ${state.powers[type]}">
+            <span class="power-icon" aria-hidden="true">${icon}</span>
+            <span class="power-count">${state.powers[type]}</span>
+        </button>
+    `).join("");
+}
+
+function formatCombo(multiplier) {
+    return multiplier > 0 ? `${multiplier}x` : "—";
+}
+
 function createWordCycleMarkup(cycle) {
     if (!cycle?.activeWords?.length) return "";
     const words = [...cycle.activeWords]
@@ -1110,7 +1328,7 @@ function getGameRequestError(error) {
     return error.message || t("game_request_error");
 }
 
-function findBestWord(board, dictionary) {
+function findBestWord(board, dictionary, placedCell = null) {
     const candidates = [];
 
     board.forEach((row, rowIndex) => {
@@ -1123,6 +1341,14 @@ function findBestWord(board, dictionary) {
     }
 
     candidates.sort((first, second) => {
+        const placedIndex = placedCell
+            ? placedCell.row * BOARD_COLUMNS + placedCell.column
+            : -1;
+        const firstUsesPlacedCell = first.cells.includes(placedIndex);
+        const secondUsesPlacedCell = second.cells.includes(placedIndex);
+        if (firstUsesPlacedCell !== secondUsesPlacedCell) {
+            return Number(secondUsesPlacedCell) - Number(firstUsesPlacedCell);
+        }
         if (second.word.length !== first.word.length) {
             return second.word.length - first.word.length;
         }

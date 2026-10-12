@@ -120,7 +120,6 @@ const additions = [
     ['OKAPI', 'ocapi', 'okapi'],
     ['OPOSSUM', 'gambá', 'zarigüeya'],
     ['ORANGUTAN', 'orangotango', 'orangután'],
-    ['OX', 'boi', 'buey'],
     ['PANGOLIN', 'pangolim', 'pangolín'],
     ['PANTHER', 'pantera', 'pantera'],
     ['PARTRIDGE', 'perdiz', 'perdiz'],
@@ -215,7 +214,7 @@ for (const [word, translations] of Object.entries(correctedTranslations)) {
 }
 
 const sortedWords = [...words.values()].sort((first, second) => first.word.localeCompare(second.word, 'en'));
-if (sortedWords.length !== 300) throw new Error(`Expected 300 animals, found ${sortedWords.length}`);
+if (sortedWords.length !== 299) throw new Error(`Expected 299 animals, found ${sortedWords.length}`);
 
 data.general.animals.words = sortedWords;
 const output = `${JSON.stringify(data, null, 2)}\n`;

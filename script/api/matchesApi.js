@@ -41,6 +41,13 @@ export function postConfirmMatchWord(matchId, boardVersion) {
     });
 }
 
+export function postUseMatchPower(matchId, input) {
+    return requestApi(`/matches/${encodeURIComponent(matchId)}/powers/use`, {
+        method: "POST",
+        body: JSON.stringify(input)
+    });
+}
+
 export function postPauseMatch(matchId) {
     return requestApi(`/matches/${encodeURIComponent(matchId)}/pause`, {
         method: "POST",

@@ -1,7 +1,7 @@
 import { t, getLanguage } from "../systems/language.js";
 import { getSession } from "../systems/auth.js";
 import { GENERAL_DECK_ID, MAX_CARDS, scheduleCard, dueCards } from "../systems/flashcards.js";
-import { getFlashcards, postFlashcardAction } from "../api/flashcardsApi.js";
+import { getFlashcards, getFlashcardShop, getFlashcardShopDeck, postFlashcardAction } from "../api/flashcardsApi.js";
 import { playEffect } from "../systems/audio-player.js";
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -24,9 +24,16 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
         return;
     }
     if (cancelled) return;
+    let shopDecks = [];
+    let shopLoadFailed = false;
+    if (initialView === "shop") {
+        try { shopDecks = await getFlashcardShop(); }
+        catch { shopLoadFailed = true; }
+    }
     let view = initialView;
     let selectedId = initialDeckId;
     const openedDirectlyForStudy = initialView === "study" && Boolean(initialDeckId);
+    const standaloneEntryView = ["statistics", "create", "shop"].includes(initialView) ? initialView : null;
     let deckTab = "words";
     let deckPage = 0;
     let cardPage = 0;
@@ -39,6 +46,7 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
     let editingId = null;
     let activeCardId = null;
     let studySession = null;
+    let shopPreview = null;
     let pendingReview = null;
     let busy = false;
     let revealed = false;
@@ -88,15 +96,26 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
         let content;
         if (view === "statistics") {
             const cards = decks.flatMap(item => item.cards);
-            content = `<h2>${t("statistics")}</h2><div class="fc-stats">
-                ${[[decks.length, t("my_decks")], [cards.length, t("fc_cards")], [decks.reduce((sum, item) => sum + dueCards(item).length, 0), t("fc_due")], [statistics.totalReviews, t("fc_reviews")], [statistics.totalSessions, t("fc_sessions")], [statistics.completedSessions, t("fc_completed_sessions")]].map(([count, label]) => `<div><strong>${count}</strong><span>${label}</span></div>`).join("")}</div>`;
+            const metrics = [
+                ["▦", decks.length, t("my_decks")],
+                ["A", cards.length, t("fc_cards")],
+                ["◷", decks.reduce((sum, item) => sum + dueCards(item).length, 0), t("fc_due")],
+                ["↻", statistics.totalReviews, t("fc_reviews")],
+                ["▶", statistics.totalSessions, t("fc_sessions")],
+                ["✓", statistics.completedSessions, t("fc_completed_sessions")]
+            ];
+            content = `<div class="fc-statistics-heading"><span aria-hidden="true">↗</span><h2>${t("statistics")}</h2></div><div class="fc-stats">
+                ${metrics.map(([icon, count, label]) => `<article class="fc-stat-card"><span class="fc-stat-icon" aria-hidden="true">${icon}</span><strong>${count}</strong><span class="fc-stat-label">${label}</span></article>`).join("")}</div>`;
         } else if (view === "edit" && deck) {
             const editing = drafts.get(draftKey()) ?? deck.cards.find(card => card.id === editingId);
             const cardPages = Math.max(1, Math.ceil(deck.cards.length / cardPageSize()));
             cardPage = Math.max(0, Math.min(cardPage, cardPages - 1));
             content = `<div class="fc-heading"><h2>${escape(deck.name)}</h2><span>${deck.cards.length}/${MAX_CARDS} ${t("fc_cards")}</span></div>
                 <nav class="fc-tabs fc-deck-tabs" aria-label="${t("fc_deck_sections")}">${[["words", "▦", "fc_cards"], ["add", "+", editingId ? "fc_edit_card" : "fc_add_card"], ["settings", "⚙", "fc_deck_settings"]].map(([tab, icon, key]) => button("deck-tab", `<span aria-hidden="true">${icon}</span>${t(key)}`, `data-tab="${tab}" aria-current="${deckTab === tab ? "page" : "false"}"`)).join("")}</nav>
-                ${deckTab === "settings" ? `<form id="fc-rename" class="fc-inline"><label>${t("fc_deck_name")}<input name="name" required maxlength="60" value="${escape(deck.name)}"></label><button>${t("fc_rename")}</button></form><p class="fc-settings-note">${t("fc_local")}</p>` : ""}
+                ${deckTab === "settings" ? `<form id="fc-rename" class="fc-inline"><label>${t("fc_deck_name")}<input name="name" required maxlength="60" value="${escape(deck.name)}"></label><button>${t("fc_rename")}</button></form>
+                    <section class="fc-panel fc-publish-panel"><div><span class="fc-section-kicker">${t("fc_shop")}</span><h3>${t(deck.published ? "fc_published_title" : "fc_publish_title")}</h3><p>${t(deck.published ? "fc_published_hint" : "fc_publish_hint")}</p></div>
+                    ${deck.published ? button("unpublish-deck", t("fc_unpublish"), `data-id="${escape(deck.id)}"`) : button("publish-deck", `◇ ${t("fc_publish")}`, `data-id="${escape(deck.id)}" class="fc-primary" ${deck.cards.length ? "" : "disabled"}`)}</section>
+                    <p class="fc-settings-note">${t("fc_local")}</p>` : ""}
                 ${deckTab === "add" ? `<form id="fc-card-form" class="fc-panel"><h3>${t(editingId ? "fc_edit_card" : "fc_add_card")}</h3><div class="fc-fields">
                     <label>${t("fc_word")}<input name="word" required maxlength="80" value="${escape(editing?.word ?? "")}" ${!editingId && deck.cards.length >= MAX_CARDS ? "disabled" : ""}></label>
                     <label>${t("fc_translation")}<input name="translation" required maxlength="160" value="${escape(editing?.translation ?? "")}" ${!editingId && deck.cards.length >= MAX_CARDS ? "disabled" : ""}></label></div>
@@ -117,18 +136,29 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
             } else content += `<section class="fc-complete"><div class="fc-complete-icon" aria-hidden="true">✓</div><span class="fc-complete-label">${t("fc_session_complete")}</span><h3>${deck.cards.length ? t("fc_done") : t("fc_general_empty")}</h3><p>${next ? `${t("fc_next")}: <strong>${date(next)}</strong>` : t("fc_general_empty_hint")}</p>${deck.cards.length ? `<div class="fc-complete-stats"><div><strong>${reviewed}</strong><span>${t("fc_reviewed_short")}</span></div><div><strong>${deck.cards.length}</strong><span>${t("fc_cards")}</span></div></div><div class="fc-complete-actions">${button("review-again", `↻ ${t("fc_review_again")}`, 'class="fc-primary"')}${button("finish-study", t("fc_finish_review"))}</div>` : `<div class="fc-complete-actions">${button("finish-study", t("back"), 'class="fc-primary"')}</div>`}</section>`;
         } else if (view === "create") {
             content = `<h2>${t("fc_create")}</h2><p>${t("fc_limit_hint")}</p><form id="fc-create" class="fc-panel fc-create-form"><label>${t("fc_deck_name")}<input name="name" required maxlength="60" placeholder="${t("fc_name_example")}" value="${escape(drafts.get("deck-name") ?? "")}"></label><button class="fc-primary">${t("fc_create")}</button></form>`;
+        } else if (view === "shop") {
+            if (shopPreview) {
+                content = `<div class="fc-heading"><div><span class="fc-section-kicker">${t("fc_shop")}</span><h2>${escape(shopPreview.name)}</h2><p>${t("fc_by")} ${escape(shopPreview.owner)} · ${shopPreview.cardCount} ${t("fc_cards")}</p></div>${button("shop-list", `← ${t("back")}`)}</div>
+                    <section class="fc-panel fc-shop-preview"><div class="fc-shop-social"><span>♥ ${shopPreview.likes}</span>${shopPreview.ownerId === owner ? `<span class="fc-owner-badge">${t("fc_your_deck")}</span>` : button("toggle-like", `${shopPreview.likedByUser ? "♥" : "♡"} ${t(shopPreview.likedByUser ? "fc_liked" : "fc_like")}`, `data-id="${escape(shopPreview.id)}"`)}</div>
+                    <ul>${shopPreview.cards.map(card => `<li><strong>${escape(card.word)}</strong><span>${escape(card.translation)}</span></li>`).join("")}</ul>
+                    ${shopPreview.ownerId === owner ? "" : button("import-shop-deck", `↓ ${t("fc_add_to_my_decks")}`, `data-id="${escape(shopPreview.id)}" class="fc-primary"`)}</section>`;
+            } else {
+                content = `<div class="fc-shop-hero"><div><span class="fc-section-kicker">${t("fc_community")}</span><h2>${t("fc_shop")}</h2><p>${t("fc_shop_hint")}</p></div><span class="fc-shop-mark" aria-hidden="true">◇</span></div>
+                    ${shopLoadFailed ? `<section class="fc-empty"><p>${t("fc_shop_error")}</p>${button("refresh-shop", t("fc_retry"), 'class="fc-primary"')}</section>` : `<div class="fc-shop-grid">${shopDecks.map(item => `<article class="fc-panel fc-shop-card"><div class="fc-deck-top"><span class="fc-section-kicker">${t("fc_by")} ${escape(item.owner)}</span><span class="fc-like-count">♥ ${item.likes}</span></div><h3>${escape(item.name)}</h3><p>${item.cardCount} ${t("fc_cards")}</p><div class="fc-actions">${button("open-shop-deck", t("fc_view_deck"), `data-id="${escape(item.id)}" class="fc-primary"`)}${item.ownerId === owner ? `<span class="fc-owner-badge">${t("fc_your_deck")}</span>` : button("toggle-like", item.likedByUser ? "♥" : "♡", `data-id="${escape(item.id)}" aria-label="${t(item.likedByUser ? "fc_unlike" : "fc_like")}" class="fc-like-button ${item.likedByUser ? "liked" : ""}"`)}</div></article>`).join("") || `<section class="fc-empty fc-shop-empty"><div class="fc-empty-icon">◇</div><h3>${t("fc_shop_empty")}</h3><p>${t("fc_shop_empty_hint")}</p></section>`}</div>`}`;
+            }
         } else {
             view = "decks";
             const deckPages = Math.max(1, Math.ceil(decks.length / deckPageSize()));
             deckPage = Math.max(0, Math.min(deckPage, deckPages - 1));
             const totalDue = decks.reduce((sum, item) => sum + dueCards(item).length, 0);
             content = `<div class="fc-dashboard"><div><span>${t("fc_decks_count")}</span><strong>${decks.length}</strong></div><div><span>${t("fc_due_now")}</span><strong>${totalDue}</strong></div><div><span>${t("fc_total_words")}</span><strong>${decks.reduce((sum, item) => sum + item.cards.length, 0)}</strong></div></div>
-                <div class="fc-heading"><div><h2>${t("my_decks")}</h2><p>${t("fc_choose_deck")}</p></div></div>
+                <div class="fc-heading"><div><h2>${t("my_decks")}</h2><p>${t("fc_choose_deck")}</p></div>${button("open-shop", `◇ ${t("fc_shop")}`)}</div>
                 <div class="fc-decks">${decks.slice(deckPage * deckPageSize(), (deckPage + 1) * deckPageSize()).map((item, index) => `<article class="fc-panel fc-deck-card"><div class="fc-deck-top"><span class="fc-deck-number">${String(deckPage * deckPageSize() + index + 1).padStart(2, "0")}</span><span class="fc-due-pill">${dueCards(item).length} ${t("fc_due")}</span></div><h3>${escape(item.name)}</h3><div class="fc-progress" aria-label="${item.cards.length}/${MAX_CARDS} ${t("fc_cards")}"><span style="width:${item.cards.length / MAX_CARDS * 100}%"></span></div><p>${item.cards.length}/${MAX_CARDS} ${t("fc_cards")}</p><div class="fc-actions">${button("study", `▶ ${t("fc_study")}`, `data-id="${escape(item.id)}" class="fc-primary" ${item.cards.length ? "" : "disabled"}`)}${button("open-deck", t("fc_manage"), `data-id="${escape(item.id)}"`)}${button("delete-deck", "×", `data-id="${escape(item.id)}" class="fc-icon-danger" aria-label="${t("fc_remove")}"`)}</div></article>`).join("") || `<section class="fc-empty fc-empty-decks"><div class="fc-empty-icon">▦</div><h3>${t("fc_empty_decks_title")}</h3><p>${t("fc_no_decks")}</p></section>`}</div>${pagination(deckPage, deckPages, "deck")}`;
         }
         const inDeck = (view === "edit" || view === "study") && deck;
+        const isStandaloneEntry = view === standaloneEntryView;
         app.innerHTML = `<main class="fc-screen"><header class="fc-header">${button("back", "←", `aria-label="${t("back")}"`)}<h1>${t("flashcards_mode")}</h1><span class="fc-header-spacer" aria-hidden="true"></span></header>
-            ${inDeck ? "" : `<nav class="fc-tabs fc-main-tabs" aria-label="${t("flashcards_mode")}">${[["decks", "▦", "my_decks"], ["create", "+", "fc_create"], ["statistics", "↗", "statistics"]].map(([tab, icon, key]) => button(tab, `<span aria-hidden="true">${icon}</span>${t(key)}`, `aria-current="${view === tab ? "page" : "false"}"`)).join("")}</nav>`}
+            ${inDeck || isStandaloneEntry || view === "shop" ? "" : `<nav class="fc-tabs fc-main-tabs" aria-label="${t("flashcards_mode")}">${[["decks", "▦", "my_decks"], ["create", "+", "fc_create"]].map(([tab, icon, key]) => button(tab, `<span aria-hidden="true">${icon}</span>${t(key)}`, `aria-current="${view === tab ? "page" : "false"}"`)).join("")}</nav>`}
             <div class="fc-error" role="alert"></div><section class="fc-content fc-view-${view}" aria-label="${t("flashcards_mode")}">${content}</section></main>`;
         app.querySelectorAll("[data-action]").forEach(element => element.addEventListener("click", () => action(element.dataset).catch(() => error(t("fc_save_error")))));
         app.querySelector("#fc-create")?.addEventListener("submit", async event => {
@@ -176,7 +206,12 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
         if (action === "deck-next") deckPage += 1;
         if (action === "card-previous") cardPage -= 1;
         if (action === "card-next") cardPage += 1;
-        if (action === "back") { if (view === "study") return finishStudy(); if (view === "decks" || openedDirectlyForStudy) return onBack(); view = "decks"; editingId = null; }
+        if (action === "open-shop") {
+            shopPreview = null; view = "shop";
+            try { shopDecks = await getFlashcardShop(); shopLoadFailed = false; }
+            catch { shopLoadFailed = true; }
+        }
+        if (action === "back") { if (view === "study") return finishStudy(); if (view === "decks" || openedDirectlyForStudy || view === standaloneEntryView) return onBack(); view = "decks"; editingId = null; }
         if (["decks", "statistics", "create"].includes(action)) {
             if (action === "statistics") {
                 try { ({ decks, statistics } = await getFlashcards()); }
@@ -185,6 +220,29 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
             view = action;
         }
         if (action === "open-deck") { selectedId = id; editingId = null; deckTab = "words"; cardPage = 0; view = "edit"; }
+        if (action === "publish-deck") { if (!await commit({ action: "publishDeck", id })) return; }
+        if (action === "unpublish-deck") { if (!await commit({ action: "unpublishDeck", id })) return; }
+        if (action === "refresh-shop") {
+            try { shopDecks = await getFlashcardShop(); shopLoadFailed = false; }
+            catch { shopLoadFailed = true; }
+        }
+        if (action === "shop-list") { shopPreview = null; }
+        if (action === "open-shop-deck") {
+            try { shopPreview = await getFlashcardShopDeck(id); }
+            catch { error(t("fc_shop_error")); return; }
+        }
+        if (action === "toggle-like") {
+            if (!await commit({ action: "toggleDeckLike", id })) return;
+            try {
+                shopDecks = await getFlashcardShop();
+                if (shopPreview?.id === id) shopPreview = await getFlashcardShopDeck(id);
+            } catch { error(t("fc_shop_error")); return; }
+        }
+        if (action === "import-shop-deck") {
+            const importedId = crypto.randomUUID();
+            if (!await commit({ action: "importShopDeck", id: importedId, sourceDeckId: id })) return;
+            selectedId = importedId; editingId = null; deckTab = "words"; cardPage = 0; view = "edit";
+        }
         if (action === "study") { selectedId = id; if (!await startStudy()) return; }
         if (action === "reveal") { revealed = true; playEffect("select", .45); }
         if (action === "refresh") activeCardId = null;

@@ -1,6 +1,6 @@
 import { getLanguage, t } from "../systems/language.js";
 import { startGridEffects } from "../systems/grid-effects.js";
-import { getSession } from "../systems/auth.js";
+import { applyProgressionAward, checkSession, getSession } from "../systems/auth.js";
 import { WS_BASE_URL } from "../config.js";
 import { playEffect } from "../systems/audio-player.js";
 
@@ -153,6 +153,11 @@ export async function loadVersus(onBack) {
 
             case "match_over":
                 handleMatchOver(msg);
+                break;
+
+            case "progression_awarded":
+                applyProgressionAward(msg.award);
+                renderProgressionAward(msg.award);
                 break;
 
             case "opponent_disconnected":
@@ -383,7 +388,7 @@ export async function loadVersus(onBack) {
                                     ${createCurrentBatchHtml(currentBatch, selectedLetterIndex)}
                                 </div>
                             </div>
-                            <p><kbd>A</kbd><kbd>D</kbd> mover &nbsp; <kbd>S</kbd> descer &nbsp; <kbd>W</kbd> trocar</p>
+                            <p><kbd>A</kbd><kbd>D</kbd> mover &nbsp; <kbd>S</kbd> descer &nbsp; <kbd>Q</kbd> trocar</p>
                         </div>
                     </section>
 
@@ -484,7 +489,7 @@ export async function loadVersus(onBack) {
             } else if (key === "arrowdown" || key === "s") {
                 dropBlock();
                 event.preventDefault();
-            } else if (key === "r" || key === "w") {
+            } else if (key === "q") {
                 selectNextLetter();
                 event.preventDefault();
             } else if (event.code === "Space" && pendingWord) {
@@ -706,6 +711,8 @@ export async function loadVersus(onBack) {
                     </div>
                 </div>
 
+                <div class="versus-xp-slot"></div>
+
                 <button class="mode-menu-button primary-mode-button" id="btn-versus-rematch">
                     ${t("play_again")}
                 </button>
@@ -722,11 +729,23 @@ export async function loadVersus(onBack) {
             renderLobby();
         });
 
-        overlay.querySelector("#btn-versus-leave").addEventListener("click", () => {
+        overlay.querySelector("#btn-versus-leave").addEventListener("click", async () => {
             overlay.remove();
             if (socket) socket.close();
+            await checkSession();
             onBack?.();
         });
+    }
+
+    function renderProgressionAward(award) {
+        if (!award?.progression) return;
+        const slot = document.querySelector(".versus-xp-slot");
+        if (!slot) return;
+        slot.innerHTML = `
+            <div class="versus-xp-award" aria-live="polite">
+                <strong>${t("xp_earned").replace("{xp}", String(award.xpAwarded))}</strong>
+            </div>
+        `;
     }
 
     function cleanupGame() {

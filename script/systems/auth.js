@@ -18,6 +18,18 @@ export function getSession() {
     return activeSession;
 }
 
+export function applyProgressionAward(award) {
+    if (!activeSession?.user || !award?.progression) return;
+
+    saveSession({
+        ...activeSession,
+        user: {
+            ...activeSession.user,
+            progression: award.progression
+        }
+    });
+}
+
 function getSavedSession() {
     const savedSession = localStorage.getItem(SESSION_KEY);
     if (!savedSession) return null;

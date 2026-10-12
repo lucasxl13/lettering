@@ -100,3 +100,18 @@
     .join-room-box { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .pulse-dot, .versus-live-dot, .versus-toast, .board-cell.word-match, .board-cell.falling-left, .board-cell.falling-right { animation: none; } }
+.versus-xp-award {
+    display: grid;
+    gap: 5px;
+    margin: 2px 0 8px;
+    padding: 10px 14px;
+    color: var(--muted-text-color);
+    background: rgba(var(--primary-rgb), .1);
+    border: 1px solid rgba(var(--primary-rgb), .55);
+    border-radius: 10px;
+}
+
+.versus-xp-award strong {
+    color: #fff;
+    font-size: 19px;
+}
