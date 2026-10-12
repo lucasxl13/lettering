@@ -1,7 +1,11 @@
-const apiHost = window.location.hostname || "localhost";
-const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const LOCAL_HOSTNAMES = ["127.0.0.1", "localhost"];
+const REMOTE_SERVER_URL = "http://node226503-testandoaplicacao.sp1.br.saveincloud.net.br";
 
-export const API_BASE_URL = `http://${apiHost}:3000/api/v1`;
-export const WS_BASE_URL = `${wsProtocol}//${apiHost}:3000/ws`;
+const serverUrl = LOCAL_HOSTNAMES.includes(window.location.hostname)
+    ? `http://${window.location.hostname}:3000`
+    : REMOTE_SERVER_URL;
+
+export const API_BASE_URL = `${serverUrl}/api/v1`;
+export const WS_BASE_URL = `${serverUrl.replace(/^http/, "ws")}/ws`;
 
 
