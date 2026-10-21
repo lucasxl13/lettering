@@ -6,6 +6,7 @@ import { loadModes } from "./modes.js";
 import { openGuestWarning } from "./guest-warning.js";
 import { startGridEffects } from "../systems/grid-effects.js";
 import { toRomanLevel } from "../systems/progression-format.js";
+import { maybeStartTour, startTour } from "../systems/tour-guide.js";
 
 const TITLE = "LETTERING";
 const LANGUAGES = [
@@ -54,6 +55,14 @@ export function loadMenu() {
         });
     });
     document.getElementById("settings-button").addEventListener("click", openSettings);
+    document.getElementById("help-button").addEventListener("click", () => {
+        if (session) {
+            startTour();
+            return;
+        }
+
+        openLoginModal(loadMenu);
+    });
 
     if (session) {
         document.getElementById("logout-button").addEventListener("click", async () => {
@@ -65,6 +74,8 @@ export function loadMenu() {
             openLoginModal(loadMenu);
         });
     }
+
+    maybeStartTour();
 }
 
 function createAccountCard(session, userName) {

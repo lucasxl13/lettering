@@ -4,11 +4,14 @@ import { getVolume, setVolume } from "../systems/audio-settings.js";
 import { RADIO_TRACKS, getRadioTrack, setRadioTrack } from "../systems/audio-player.js";
 import { registerModal } from "../systems/modal.js";
 import { exitFullscreen, isFullscreen, requestMobileFullscreen } from "../systems/fullscreen.js";
+import { getSession } from "../systems/auth.js";
+import { startTour } from "../systems/tour-guide.js";
 
 export function openSettings() {
     if (document.querySelector(".settings-overlay")) return;
 
     const overlay = document.createElement("div");
+    const canOpenTour = Boolean(getSession());
     overlay.className = "settings-overlay";
     overlay.innerHTML = `
         <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -39,6 +42,8 @@ export function openSettings() {
                 <input class="settings-toggle-input" type="checkbox" ${isFullscreen() ? "checked" : ""}>
                 <span class="settings-toggle-track" aria-hidden="true"></span>
             </label>
+
+            ${canOpenTour ? `<button type="button" class="settings-tour-button">✦ ${t("tour_replay")}</button>` : ""}
 
             <button class="menu_button close-settings">${t("back")}</button>
         </section>
@@ -94,6 +99,11 @@ export function openSettings() {
 
     document.addEventListener("fullscreenchange", syncFullscreenToggle, { signal: modal.signal });
     document.addEventListener("webkitfullscreenchange", syncFullscreenToggle, { signal: modal.signal });
+
+    overlay.querySelector(".settings-tour-button")?.addEventListener("click", () => {
+        modal.dismiss();
+        window.setTimeout(startTour, 120);
+    });
 
     overlay.querySelector(".close-settings").addEventListener("click", modal.close);
 }
