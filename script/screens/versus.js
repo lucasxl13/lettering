@@ -55,6 +55,7 @@ export async function loadVersus(onBack) {
     let elapsedSeconds = 0;
     let timerInterval = null;
     let activeKeyHandler = null;
+    let activeTouchCleanup = null;
 
     renderLobby();
 
@@ -388,7 +389,8 @@ export async function loadVersus(onBack) {
                                     ${createCurrentBatchHtml(currentBatch, selectedLetterIndex)}
                                 </div>
                             </div>
-                            <p><kbd>A</kbd><kbd>D</kbd> mover &nbsp; <kbd>S</kbd> descer &nbsp; <kbd>Q</kbd> trocar</p>
+                            <p class="versus-keyboard-hint"><kbd>A</kbd><kbd>D</kbd> mover &nbsp; <kbd>S</kbd> descer &nbsp; <kbd>Q</kbd> trocar</p>
+                            <p class="versus-touch-hint">Toque nos lados para mover · toque na peça para trocar · segure para descer</p>
                         </div>
                     </section>
 
@@ -449,8 +451,106 @@ export async function loadVersus(onBack) {
             syncState();
         });
 
+        // Touch controls mirror the classic mode on mobile:
+        // tap either side to move, tap the falling piece to swap letters,
+        // and hold to accelerate the fall.
+        let touchStart = null;
+        let touchHoldTimeout = null;
+        let touchDropInterval = null;
+        let lastTouchInteraction = 0;
+
+        function clearTouchDrop() {
+            window.clearTimeout(touchHoldTimeout);
+            window.clearInterval(touchDropInterval);
+            touchHoldTimeout = null;
+            touchDropInterval = null;
+        }
+
+        function stopTouchAcceleration() {
+            clearTouchDrop();
+        }
+
+        boardElement.addEventListener("pointerdown", event => {
+            if (event.pointerType !== "touch" || gameEnded || touchStart) return;
+
+            clearTouchDrop();
+            lastTouchInteraction = Date.now();
+            touchStart = {
+                x: event.clientX,
+                y: event.clientY,
+                pointerId: event.pointerId,
+                wordCell: event.target.closest(".word-match"),
+                fallingCell: event.target.closest(".falling"),
+                moved: false,
+                accelerated: false
+            };
+            boardElement.setPointerCapture?.(event.pointerId);
+
+            touchHoldTimeout = window.setTimeout(() => {
+                if (!touchStart || gameEnded) return;
+                touchStart.accelerated = true;
+                dropBlock();
+                touchDropInterval = window.setInterval(dropBlock, 180);
+            }, 280);
+        });
+
+        boardElement.addEventListener("pointermove", event => {
+            if (event.pointerType !== "touch" || touchStart?.pointerId !== event.pointerId) return;
+            if (Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 12) {
+                touchStart.moved = true;
+            }
+        });
+
+        boardElement.addEventListener("pointerup", event => {
+            if (event.pointerType !== "touch" || touchStart?.pointerId !== event.pointerId) return;
+
+            const tappedWord = touchStart.wordCell;
+            const tappedFallingPiece = touchStart.fallingCell;
+            const moved = touchStart.moved;
+            const accelerated = touchStart.accelerated;
+            clearTouchDrop();
+            touchStart = null;
+
+            if (gameEnded || accelerated || moved) return;
+
+            if (tappedWord) {
+                confirmWord();
+                return;
+            }
+
+            if (tappedFallingPiece) {
+                selectNextLetter();
+                return;
+            }
+
+            const bounds = boardElement.getBoundingClientRect();
+            moveHorizontally(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
+        });
+
+        boardElement.addEventListener("pointercancel", () => {
+            clearTouchDrop();
+            touchStart = null;
+        });
+
+        window.addEventListener("pointerup", stopTouchAcceleration, true);
+        window.addEventListener("pointercancel", stopTouchAcceleration, true);
+        window.addEventListener("touchend", stopTouchAcceleration, true);
+        window.addEventListener("touchcancel", stopTouchAcceleration, true);
+        window.addEventListener("blur", stopTouchAcceleration);
+
+        activeTouchCleanup = () => {
+            clearTouchDrop();
+            touchStart = null;
+            window.removeEventListener("pointerup", stopTouchAcceleration, true);
+            window.removeEventListener("pointercancel", stopTouchAcceleration, true);
+            window.removeEventListener("touchend", stopTouchAcceleration, true);
+            window.removeEventListener("touchcancel", stopTouchAcceleration, true);
+            window.removeEventListener("blur", stopTouchAcceleration);
+        };
+
         // Board click to confirm pending word
         boardElement.addEventListener("click", event => {
+            if (Date.now() - lastTouchInteraction < 700) return;
             if (event.target.closest(".word-match")) {
                 confirmWord();
             }
@@ -755,6 +855,8 @@ export async function loadVersus(onBack) {
         timerInterval = null;
         if (activeKeyHandler) document.removeEventListener("keydown", activeKeyHandler);
         activeKeyHandler = null;
+        activeTouchCleanup?.();
+        activeTouchCleanup = null;
     }
 
     function leaveVersus() {

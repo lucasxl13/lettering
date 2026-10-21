@@ -45,7 +45,7 @@
 .versus-player-metrics { display: flex; gap: clamp(14px, 3vw, 28px); }
 .versus-player-metrics > span { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .versus-player-metrics strong { color: var(--primary-color); font-size: 19px; font-variant-numeric: tabular-nums; }
-.versus-board { width: 100%; max-height: calc(100dvh - 190px); aspect-ratio: 9 / 10; display: grid; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(10, 1fr); gap: clamp(2px, .35vw, 4px); padding: clamp(3px, .45vw, 5px); background: color-mix(in srgb, var(--primary-color) 3%, var(--background)); border: 2px solid rgba(var(--primary-rgb), .65); user-select: none; }
+.versus-board { width: 100%; max-height: calc(100dvh - 190px); aspect-ratio: 9 / 10; display: grid; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(10, 1fr); gap: clamp(2px, .35vw, 4px); padding: clamp(3px, .45vw, 5px); background: color-mix(in srgb, var(--primary-color) 3%, var(--background)); border: 2px solid rgba(var(--primary-rgb), .65); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .versus-board--opponent { background: color-mix(in srgb, var(--rival-color) 3%, var(--background)); border-color: color-mix(in srgb, var(--rival-color) 62%, transparent); }
 .versus-board .board-cell, .versus-board .opponent-cell { min-width: 0; min-height: 0; display: grid; place-items: center; color: var(--text-color); background: rgba(255,255,255,.025); border: 1px solid rgba(var(--primary-rgb), .14); font: 700 clamp(14px, 1.6vw, 22px) var(--font-pixel); }
 .versus-board .board-cell.locked { background: color-mix(in srgb, var(--primary-color) 22%, var(--background)); border-color: rgba(var(--primary-rgb), .68); }
@@ -63,6 +63,7 @@
 .versus-controls .current-letter { width: 34px; height: 34px; font-size: 15px; }
 .versus-controls p { margin: 0; color: var(--muted-text-color); font-size: 9px; text-align: right; }
 .versus-controls kbd { padding: 3px 5px; color: var(--text-color); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); }
+.versus-touch-hint { display: none; }
 .opponent-watch-label { min-height: 68px; display: grid; place-items: center; color: color-mix(in srgb, var(--rival-color) 72%, var(--muted-text-color)); background: color-mix(in srgb, var(--rival-color) 6%, var(--surface-color)); border: 2px solid color-mix(in srgb, var(--rival-color) 62%, transparent); border-top: 0; font-size: 10px; letter-spacing: 1.5px; }
 .versus-center-panel { padding-top: 90px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .versus-badge { padding: 10px 12px; color: var(--text-color); background: linear-gradient(135deg, var(--primary-color), var(--rival-color)); border-radius: 50%; font-size: 20px; font-weight: 900; box-shadow: 0 0 24px rgba(var(--primary-rgb), .28); }
@@ -97,6 +98,8 @@
     .versus-exit { padding: 7px; font-size: 9px; }
     .versus-controls { align-items: flex-start; flex-direction: column; }
     .versus-controls p { text-align: left; }
+    .versus-keyboard-hint { display: none; }
+    .versus-touch-hint { display: block; }
     .join-room-box { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .pulse-dot, .versus-live-dot, .versus-toast, .board-cell.word-match, .board-cell.falling-left, .board-cell.falling-right { animation: none; } }
