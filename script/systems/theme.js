@@ -24,9 +24,18 @@ export function setTheme(theme) {
     const selectedTheme = THEME_IDS.includes(theme) ? theme : DEFAULT_THEME;
     document.documentElement.dataset.theme = selectedTheme;
     localStorage.setItem("lettering-theme", selectedTheme);
+    syncBrowserThemeColor();
     return selectedTheme;
 }
 
 export function loadTheme() {
     return setTheme(getTheme());
+}
+
+function syncBrowserThemeColor() {
+    const primaryColor = getComputedStyle(document.documentElement)
+        .getPropertyValue("--primary-color")
+        .trim();
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (primaryColor && meta) meta.setAttribute("content", primaryColor);
 }

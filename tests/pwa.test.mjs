@@ -8,10 +8,20 @@ test("PWA manifest exposes installable icons and standalone display", () => {
     const manifest = JSON.parse(readFileSync(new URL("manifest.webmanifest", root), "utf8"));
     assert.equal(manifest.display, "standalone");
     assert.equal(manifest.start_url, "./");
+    assert.equal(manifest.theme_color, "#ff2020");
     assert.ok(manifest.icons.some(icon => icon.sizes === "192x192"));
     assert.ok(manifest.icons.some(icon => icon.sizes === "512x512"));
     manifest.icons.forEach(icon => assert.ok(existsSync(new URL(icon.src, root))));
     assert.ok(existsSync(new URL("assets/icons/lettering-180.png", root)));
+});
+
+test("Android keeps fullscreen control and browser chrome follows the selected theme", () => {
+    const settings = readFileSync(new URL("script/screens/settings.js", root), "utf8");
+    const theme = readFileSync(new URL("script/systems/theme.js", root), "utf8");
+    assert.match(settings, /requestMobileFullscreen/);
+    assert.match(settings, /fullscreen_mode/);
+    assert.match(theme, /meta\[name="theme-color"\]/);
+    assert.match(theme, /--primary-color/);
 });
 
 test("page links the manifest, Apple icon and service worker registration", () => {

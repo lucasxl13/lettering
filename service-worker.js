@@ -1,4 +1,4 @@
-const CACHE_NAME = "lettering-shell-v1";
+const CACHE_NAME = "lettering-shell-v3";
 const APP_SHELL = [
     "./", "./index.html", "./manifest.webmanifest",
     "./style/index.css", "./style/access.css", "./style/menu.css", "./style/modes.css",

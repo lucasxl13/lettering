@@ -14,7 +14,10 @@ export function setRadioTrack(id) {
     if (!track) return;
     localStorage.setItem("lettering-radio", id);
     window.dispatchEvent(new CustomEvent("lettering-radio-change"));
-    if (context) { void context.resume().catch(() => {}); void startTrack(); }
+    if (context) {
+        if (!isPageHidden()) void context.resume().catch(() => {});
+        void startTrack();
+    }
 }
 
 const EFFECT_PATHS = {
@@ -29,12 +32,36 @@ const EFFECT_PATHS = {
 };
 
 const effectTemplates = new Map();
+const activeEffects = new Set();
 const buffers = new Map();
 let context;
 let master;
 let current;
 let request = 0;
 let started = false;
+
+function isPageHidden() {
+    return document.visibilityState === "hidden";
+}
+
+function suspendAudio() {
+    activeEffects.forEach(sound => {
+        try {
+            sound.pause?.();
+            sound.currentTime = 0;
+        } catch {
+            // Alguns navegadores não permitem reposicionar um efeito ainda não carregado.
+        }
+    });
+    activeEffects.clear();
+    if (context?.state === "running") void context.suspend().catch(() => {});
+}
+
+function resumeAudio() {
+    if (!isPageHidden() && context && context.state !== "running") {
+        void context.resume().catch(() => {});
+    }
+}
 
 export function installAudio() {
     if (started) return;
@@ -54,7 +81,7 @@ export function installAudio() {
             master.connect(context.destination);
             void startTrack();
         }
-        if (context.state !== "running") void context.resume().catch(() => {});
+        if (!isPageHidden() && context.state !== "running") void context.resume().catch(() => {});
     };
     document.addEventListener("pointerdown", beginMusic);
     document.addEventListener("keydown", beginMusic);
@@ -65,15 +92,23 @@ export function installAudio() {
         if (event.detail?.type !== "music" || !master) return;
         master.gain.setTargetAtTime(getVolume("music") / 100 * .42, context.currentTime, .025);
     });
+    document.addEventListener("visibilitychange", () => {
+        if (isPageHidden()) suspendAudio();
+        else resumeAudio();
+    });
+    window.addEventListener("pagehide", suspendAudio);
+    window.addEventListener("pageshow", resumeAudio);
 }
 
 export function playEffect(name, strength = 1) {
     const template = effectTemplates.get(name);
     const volume = getVolume("effects") / 100 * strength;
-    if (!template || volume <= 0) return;
+    if (!template || volume <= 0 || isPageHidden()) return;
     const sound = template.cloneNode();
     sound.volume = Math.min(1, volume);
-    void sound.play().catch(() => {});
+    activeEffects.add(sound);
+    sound.addEventListener?.("ended", () => activeEffects.delete(sound), { once: true });
+    void sound.play().catch(() => activeEffects.delete(sound));
 }
 
 // Bake an overlap into imported music. AudioBufferSource then loops on the

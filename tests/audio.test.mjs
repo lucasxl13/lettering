@@ -10,6 +10,8 @@ globalThis.document = new EventTarget();
 globalThis.Audio = class { cloneNode() { return this; } play() { return Promise.resolve(); } };
 const sources = [];
 const gains = [];
+let suspendCalls = 0;
+let resumeCalls = 0;
 function buffer(channels, length, sampleRate) {
     const data = Array.from({ length: channels }, () => new Float32Array(length));
     return { numberOfChannels: channels, length, sampleRate, getChannelData: c => data[c] };
@@ -27,7 +29,8 @@ window.AudioContext = class {
     }
     createBuffer = buffer;
     decodeAudioData() { return Promise.resolve(buffer(1, 1000, 100)); }
-    resume() { return Promise.resolve(); }
+    suspend() { suspendCalls += 1; this.state = 'suspended'; return Promise.resolve(); }
+    resume() { resumeCalls += 1; this.state = 'running'; return Promise.resolve(); }
 };
 let pending = [];
 globalThis.fetch = path => new Promise(resolve => pending.push({ path, resolve }));
@@ -82,6 +85,20 @@ test('failed station can be retried while current music stays available', async 
     resolveFetch(pending.at(-1));
     await tick();
     assert.equal(sources.length, 3);
+});
+
+test('audio suspends while the app is hidden and resumes on return', async () => {
+    const previousSuspends = suspendCalls;
+    document.visibilityState = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await tick();
+    assert.equal(suspendCalls, previousSuspends + 1);
+
+    const previousResumes = resumeCalls;
+    document.visibilityState = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await tick();
+    assert.equal(resumeCalls, previousResumes + 1);
 });
 
 test('radio translations and generated assets are valid', () => {

@@ -3,7 +3,8 @@ import { THEMES, getTheme, setTheme } from "../systems/theme.js";
 import { getVolume, setVolume } from "../systems/audio-settings.js";
 import { RADIO_TRACKS, getRadioTrack, setRadioTrack } from "../systems/audio-player.js";
 import { registerModal } from "../systems/modal.js";
-import { getPwaInstallState, requestPwaInstall } from "../systems/pwa-install.js";
+import { getPwaInstallState, isAppleMobileDevice, requestPwaInstall } from "../systems/pwa-install.js";
+import { exitFullscreen, isFullscreen, requestMobileFullscreen } from "../systems/fullscreen.js";
 
 export function openSettings() {
     if (document.querySelector(".settings-overlay")) return;
@@ -35,6 +36,7 @@ export function openSettings() {
             </div>
 
             ${createInstallButton()}
+            ${createFullscreenToggle()}
 
             <button class="menu_button close-settings">${t("back")}</button>
         </section>
@@ -91,6 +93,22 @@ export function openSettings() {
         updateInstallButton(installButton);
     }, { signal: modal.signal });
 
+    const fullscreenToggle = overlay.querySelector(".settings-toggle-input");
+    if (fullscreenToggle) {
+        const syncFullscreenToggle = () => {
+            fullscreenToggle.checked = isFullscreen();
+        };
+        fullscreenToggle.addEventListener("change", async () => {
+            fullscreenToggle.disabled = true;
+            if (fullscreenToggle.checked) await requestMobileFullscreen();
+            else await exitFullscreen();
+            fullscreenToggle.disabled = false;
+            syncFullscreenToggle();
+        });
+        document.addEventListener("fullscreenchange", syncFullscreenToggle, { signal: modal.signal });
+        document.addEventListener("webkitfullscreenchange", syncFullscreenToggle, { signal: modal.signal });
+    }
+
     overlay.querySelector(".close-settings").addEventListener("click", modal.close);
 }
 
@@ -104,6 +122,19 @@ function createInstallButton() {
                 <small>${t(active ? "pwa_active" : "pwa_install_hint")}</small>
             </span>
         </button>
+    `;
+}
+
+function createFullscreenToggle() {
+    const root = document.documentElement;
+    const supported = Boolean(root.requestFullscreen || root.webkitRequestFullscreen || root.webkitRequestFullScreen);
+    if (!supported || isAppleMobileDevice()) return "";
+    return `
+        <label class="settings-toggle">
+            <span>${t("fullscreen_mode")}</span>
+            <input class="settings-toggle-input" type="checkbox" ${isFullscreen() ? "checked" : ""}>
+            <span class="settings-toggle-track" aria-hidden="true"></span>
+        </label>
     `;
 }
 
