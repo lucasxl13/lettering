@@ -109,8 +109,7 @@ export function loadModes(onBack) {
                         id="flashcards-create-button"
                         ${session ? "" : "disabled"}
                     >
-                        <span class="flashcards-tool-icon" aria-hidden="true">+</span>
-                        <span>${t("fc_create")}</span>
+                        ${t("fc_decks")}
                     </button>
 
                     <button
@@ -118,8 +117,7 @@ export function loadModes(onBack) {
                         id="flashcards-shop-button"
                         ${session ? "" : "disabled"}
                     >
-                        <span class="flashcards-tool-icon" aria-hidden="true">◇</span>
-                        <span>${t("fc_shop")}</span>
+                        ${t("fc_shop")}
                     </button>
 
                     <button
@@ -127,8 +125,7 @@ export function loadModes(onBack) {
                         id="flashcards-statistics-button"
                         ${session ? "" : "disabled"}
                     >
-                        <span class="flashcards-tool-icon" aria-hidden="true">↗</span>
-                        <span>${t("statistics")}</span>
+                        ${t("statistics")}
                     </button>
                 </div>
 
@@ -169,7 +166,7 @@ export function loadModes(onBack) {
         },
         () => loadFlashcards(() => loadModes(onBack))
     ));
-    document.getElementById("flashcards-create-button").addEventListener("click", () => loadFlashcards(() => loadModes(onBack), "create"));
+    document.getElementById("flashcards-create-button").addEventListener("click", () => loadFlashcards(() => loadModes(onBack), "decks"));
     document.getElementById("flashcards-statistics-button").addEventListener("click", () => loadFlashcards(() => loadModes(onBack), "statistics"));
     document.getElementById("flashcards-shop-button").addEventListener("click", () => loadFlashcards(() => loadModes(onBack), "shop"));
     const flashcardsMenuButtons = document.querySelectorAll(".flashcards-menu-button");

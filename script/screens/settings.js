@@ -3,15 +3,12 @@ import { THEMES, getTheme, setTheme } from "../systems/theme.js";
 import { getVolume, setVolume } from "../systems/audio-settings.js";
 import { RADIO_TRACKS, getRadioTrack, setRadioTrack } from "../systems/audio-player.js";
 import { registerModal } from "../systems/modal.js";
-import { exitFullscreen, isFullscreen, requestMobileFullscreen } from "../systems/fullscreen.js";
-import { getSession } from "../systems/auth.js";
-import { startTour } from "../systems/tour-guide.js";
+import { getPwaInstallState, requestPwaInstall } from "../systems/pwa-install.js";
 
 export function openSettings() {
     if (document.querySelector(".settings-overlay")) return;
 
     const overlay = document.createElement("div");
-    const canOpenTour = Boolean(getSession());
     overlay.className = "settings-overlay";
     overlay.innerHTML = `
         <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -37,13 +34,7 @@ export function openSettings() {
                 <small class="radio-status" role="status"></small>
             </div>
 
-            <label class="settings-toggle">
-                <span>${t("fullscreen_mode")}</span>
-                <input class="settings-toggle-input" type="checkbox" ${isFullscreen() ? "checked" : ""}>
-                <span class="settings-toggle-track" aria-hidden="true"></span>
-            </label>
-
-            ${canOpenTour ? `<button type="button" class="settings-tour-button">✦ ${t("tour_replay")}</button>` : ""}
+            ${createInstallButton()}
 
             <button class="menu_button close-settings">${t("back")}</button>
         </section>
@@ -84,28 +75,61 @@ export function openSettings() {
         });
     });
 
-    const fullscreenToggle = overlay.querySelector(".settings-toggle-input");
-    const syncFullscreenToggle = () => {
-        fullscreenToggle.checked = isFullscreen();
-    };
-
-    fullscreenToggle.addEventListener("change", async () => {
-        fullscreenToggle.disabled = true;
-        if (fullscreenToggle.checked) await requestMobileFullscreen();
-        else await exitFullscreen();
-        fullscreenToggle.disabled = false;
-        syncFullscreenToggle();
+    const installButton = overlay.querySelector(".settings-install-button");
+    installButton.addEventListener("click", async () => {
+        installButton.disabled = true;
+        const result = await requestPwaInstall();
+        installButton.disabled = false;
+        if (result === "accepted" || result === "dismissed") {
+            updateInstallButton(installButton);
+            return;
+        }
+        if (result !== "installed") openInstallInstructions(result);
     });
 
-    document.addEventListener("fullscreenchange", syncFullscreenToggle, { signal: modal.signal });
-    document.addEventListener("webkitfullscreenchange", syncFullscreenToggle, { signal: modal.signal });
-
-    overlay.querySelector(".settings-tour-button")?.addEventListener("click", () => {
-        modal.dismiss();
-        window.setTimeout(startTour, 120);
-    });
+    window.addEventListener("lettering-install-state-change", () => {
+        updateInstallButton(installButton);
+    }, { signal: modal.signal });
 
     overlay.querySelector(".close-settings").addEventListener("click", modal.close);
+}
+
+function createInstallButton() {
+    const active = getPwaInstallState() === "installed";
+    return `
+        <button type="button" class="settings-install-button" ${active ? "disabled" : ""}>
+            <span class="settings-install-icon" aria-hidden="true">＋</span>
+            <span>
+                <strong>${t("add_to_home_screen")}</strong>
+                <small>${t(active ? "pwa_active" : "pwa_install_hint")}</small>
+            </span>
+        </button>
+    `;
+}
+
+function updateInstallButton(button) {
+    const active = getPwaInstallState() === "installed";
+    button.disabled = active;
+    button.querySelector("small").textContent = t(active ? "pwa_active" : "pwa_install_hint");
+}
+
+function openInstallInstructions(state) {
+    const overlay = document.createElement("div");
+    const bodyKey = state === "ios"
+        ? "pwa_ios_instructions"
+        : state === "insecure" ? "pwa_https_required" : "pwa_browser_instructions";
+    overlay.className = "settings-overlay pwa-install-overlay";
+    overlay.innerHTML = `
+        <section class="pwa-install-panel" role="dialog" aria-modal="true" aria-labelledby="pwa-install-title">
+            <div class="pwa-install-app-icon" aria-hidden="true">L</div>
+            <h2 id="pwa-install-title">${t("add_to_home_screen")}</h2>
+            <p>${t(bodyKey)}</p>
+            <button type="button" class="menu_button pwa-install-close">${t("understood")}</button>
+        </section>
+    `;
+    document.body.appendChild(overlay);
+    const modal = registerModal(overlay, "pwa-install");
+    overlay.querySelector(".pwa-install-close").addEventListener("click", modal.close);
 }
 
 function createThemeButton(theme) {

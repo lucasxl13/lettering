@@ -167,6 +167,9 @@ export async function loadClassic(onBack, options = {}) {
                         ${createBoardCells()}
                     </div>
                     <div class="combo-burst-layer" id="combo-burst-layer" aria-live="polite"></div>
+                    <div class="mobile-gesture-hint" id="mobile-gesture-hint" role="status">
+                        ${t("mobile_gesture_hint")}
+                    </div>
                 </section>
 
                 <aside class="found-words-panel">
@@ -201,6 +204,10 @@ export async function loadClassic(onBack, options = {}) {
     const boardElement = document.querySelector(".classic-board");
     const currentBatchElement = document.querySelector(".current-batch");
     const wordCycleElement = document.getElementById("active-word-cycle");
+    const mobileGestureHint = document.getElementById("mobile-gesture-hint");
+    let foundWordsFitFrame = null;
+    const foundWordsResizeObserver = new ResizeObserver(scheduleFoundWordsFit);
+    foundWordsResizeObserver.observe(foundWordsList);
     let touchStart = null;
     let touchHoldTimeout = null;
     let touchDropInterval = null;
@@ -221,6 +228,7 @@ export async function loadClassic(onBack, options = {}) {
         if (!button) return;
 
         selectedLetterIndex = Number(button.dataset.letterIndex);
+        vibrate(6);
         renderCurrentBatch();
         renderBoard();
     });
@@ -251,14 +259,15 @@ export async function loadClassic(onBack, options = {}) {
             y: event.clientY,
             pointerId: event.pointerId,
             wordCell: event.target.closest(".word-match"),
-            fallingCell: event.target.closest(".falling"),
+            axis: null,
+            horizontalSteps: 0,
             moved: false,
             accelerated: false
         };
         boardElement.setPointerCapture?.(event.pointerId);
 
         touchHoldTimeout = window.setTimeout(() => {
-            if (!touchStart) return;
+            if (!touchStart || touchStart.moved) return;
             touchStart.accelerated = true;
             touchAccelerationQueued = true;
             void dropBlock();
@@ -268,8 +277,27 @@ export async function loadClassic(onBack, options = {}) {
 
     boardElement.addEventListener("pointermove", event => {
         if (event.pointerType !== "touch" || touchStart?.pointerId !== event.pointerId) return;
-        if (Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 12) {
+        const deltaX = event.clientX - touchStart.x;
+        const deltaY = event.clientY - touchStart.y;
+        if (Math.hypot(deltaX, deltaY) <= 12) return;
+
+        if (!touchStart.moved) {
             touchStart.moved = true;
+            touchStart.axis = Math.abs(deltaX) >= Math.abs(deltaY) ? "horizontal" : "vertical";
+            window.clearTimeout(touchHoldTimeout);
+            touchHoldTimeout = null;
+        }
+
+        if (touchStart.axis !== "horizontal") return;
+        const cellWidth = boardElement.getBoundingClientRect().width / BOARD_COLUMNS;
+        const desiredSteps = Math.trunc(deltaX / Math.max(22, cellWidth * .9));
+        let remainingSteps = desiredSteps - touchStart.horizontalSteps;
+
+        while (remainingSteps !== 0) {
+            const direction = Math.sign(remainingSteps);
+            if (!moveHorizontally(direction)) break;
+            touchStart.horizontalSteps += direction;
+            remainingSteps -= direction;
         }
     });
 
@@ -283,7 +311,6 @@ export async function loadClassic(onBack, options = {}) {
         }
 
         const tappedWord = touchStart.wordCell;
-        const tappedFallingPiece = touchStart.fallingCell;
         const moved = touchStart.moved;
         const accelerated = touchStart.accelerated;
         clearTouchDrop();
@@ -292,20 +319,16 @@ export async function loadClassic(onBack, options = {}) {
         ignoreNextBoardClick = true;
         window.setTimeout(() => { ignoreNextBoardClick = false; }, 400);
 
-        if (accelerated || moved) return;
+        if (accelerated) return;
+
+        if (moved) return;
 
         if (tappedWord) {
             confirmPendingWord();
             return;
         }
 
-        if (tappedFallingPiece) {
-            selectNextLetter();
-            return;
-        }
-
-        const bounds = boardElement.getBoundingClientRect();
-        moveHorizontally(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
+        selectNextLetter();
     });
 
     boardElement.addEventListener("pointercancel", () => {
@@ -333,6 +356,11 @@ export async function loadClassic(onBack, options = {}) {
         window.clearInterval(touchDropInterval);
         touchHoldTimeout = null;
         touchDropInterval = null;
+    }
+
+    function vibrate(pattern) {
+        if (typeof navigator.vibrate !== "function") return;
+        navigator.vibrate(pattern);
     }
 
     function renderCurrentBatch() {
@@ -446,6 +474,7 @@ export async function loadClassic(onBack, options = {}) {
     function selectNextLetter() {
         if (gameEnded || requestPending || currentBatch.length === 0) return;
         selectedLetterIndex = (selectedLetterIndex + 1) % PIECE_SIZE;
+        vibrate(6);
         renderCurrentBatch();
         renderBoard();
     }
@@ -482,15 +511,17 @@ export async function loadClassic(onBack, options = {}) {
     }
 
     function moveHorizontally(direction) {
-        if (gameEnded || requestPending) return;
+        if (gameEnded || requestPending) return false;
         const nextColumn = activeBlock.column + direction;
-        if (!canMove(activeBlock.row, nextColumn)) return;
+        if (!canMove(activeBlock.row, nextColumn)) return false;
 
         activeBlock.column = nextColumn;
         horizontalMovement = direction;
         playEffect("select", .38);
+        vibrate(5);
         renderBoard();
         horizontalMovement = 0;
+        return true;
     }
 
     async function dropBlock() {
@@ -515,6 +546,7 @@ export async function loadClassic(onBack, options = {}) {
             currentBatch[selectedLetterIndex]
         );
         playEffect("drop", .55);
+        vibrate(16);
 
         if (reachedTop) {
             loseLife();
@@ -563,6 +595,7 @@ export async function loadClassic(onBack, options = {}) {
             const lostLife = result.livesRemaining < lives;
             lives = result.livesRemaining;
             playEffect(lostLife ? "life" : "drop", lostLife ? .8 : .55);
+            vibrate(lostLife ? [24, 30, 24] : 16);
 
             pendingWord = result.foundWord
                 ? normalizeServerWord(result.foundWord)
@@ -642,6 +675,7 @@ export async function loadClassic(onBack, options = {}) {
     function loseLife() {
         lives -= 1;
         playEffect("life", .8);
+        vibrate([24, 30, 24]);
         updateLivesDisplay(livesDisplay, lives);
 
         board.forEach(row => row.fill(null));
@@ -738,6 +772,7 @@ export async function loadClassic(onBack, options = {}) {
 
         score += points;
         playEffect("word", .75);
+        vibrate([12, 22, 18]);
         if (!foundWords.some(item => item.word === pendingWord.word)) {
             foundWords.unshift({ ...pendingWord, points });
         }
@@ -768,6 +803,7 @@ export async function loadClassic(onBack, options = {}) {
             fillBoardFromCells(board, result.board.cells);
             score = result.currentScore;
             playEffect("word", .75);
+            vibrate([12, 22, 18]);
             const confirmedWord = normalizeServerWord(result.confirmedWord);
             wordCycle = result.wordCycle ?? wordCycle;
             gameplayState = result.gameplayState
@@ -823,6 +859,31 @@ export async function loadClassic(onBack, options = {}) {
                 <span>+${item.points}</span>
             </article>
         `).join("");
+        scheduleFoundWordsFit();
+    }
+
+    function scheduleFoundWordsFit() {
+        if (foundWordsFitFrame !== null) window.cancelAnimationFrame(foundWordsFitFrame);
+        foundWordsFitFrame = window.requestAnimationFrame(() => {
+            foundWordsFitFrame = null;
+            fitFoundWordsToAvailableHeight();
+        });
+    }
+
+    function fitFoundWordsToAvailableHeight() {
+        const items = [...foundWordsList.querySelectorAll(".found-word-item")];
+        if (items.length === 0 || !foundWordsList.isConnected) return;
+
+        items.forEach(item => { item.hidden = false; });
+        const availableBottom = foundWordsList.getBoundingClientRect().bottom + .5;
+        let available = true;
+
+        items.forEach((item, index) => {
+            if (index > 0 && (!available || item.getBoundingClientRect().bottom > availableBottom)) {
+                item.hidden = true;
+                available = false;
+            }
+        });
     }
 
     function updateFoundWordsCount() {
@@ -1023,6 +1084,8 @@ export async function loadClassic(onBack, options = {}) {
     function stopGame() {
         window.clearInterval(timer);
         window.clearInterval(gravity);
+        foundWordsResizeObserver.disconnect();
+        if (foundWordsFitFrame !== null) window.cancelAnimationFrame(foundWordsFitFrame);
         clearTouchDrop();
         window.removeEventListener("pointerup", stopTouchAcceleration, true);
         window.removeEventListener("pointercancel", stopTouchAcceleration, true);
@@ -1040,11 +1103,31 @@ export async function loadClassic(onBack, options = {}) {
     renderPowerToolbar();
     renderCombo();
     startGridEffects(screen);
+    showMobileGestureHint();
+
+    function showMobileGestureHint() {
+        const isTouchDevice = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+        const storageKey = "lettering-mobile-gesture-hint-v1";
+        let wasShown = false;
+        try {
+            wasShown = localStorage.getItem(storageKey) === "shown";
+            if (!wasShown && isTouchDevice) localStorage.setItem(storageKey, "shown");
+        } catch {
+            // A dica ainda funciona quando o armazenamento não está disponível.
+        }
+        if (!isTouchDevice || wasShown) {
+            mobileGestureHint.remove();
+            return;
+        }
+        window.setTimeout(() => mobileGestureHint.classList.add("is-leaving"), 4_200);
+        window.setTimeout(() => mobileGestureHint.remove(), 4_600);
+    }
 
     const timer = window.setInterval(() => {
         if (!screen.isConnected) {
             window.clearInterval(timer);
             window.clearInterval(gravity);
+            foundWordsResizeObserver.disconnect();
             document.removeEventListener("keydown", handleKeyboard);
             return;
         }

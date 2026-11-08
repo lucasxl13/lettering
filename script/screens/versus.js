@@ -452,8 +452,7 @@ export async function loadVersus(onBack) {
         });
 
         // Touch controls mirror the classic mode on mobile:
-        // tap either side to move, tap the falling piece to swap letters,
-        // and hold to accelerate the fall.
+        // tap to swap letters, drag horizontally to move, and hold to accelerate.
         let touchStart = null;
         let touchHoldTimeout = null;
         let touchDropInterval = null;
@@ -470,6 +469,10 @@ export async function loadVersus(onBack) {
             clearTouchDrop();
         }
 
+        function vibrate(pattern) {
+            if (typeof navigator.vibrate === "function") navigator.vibrate(pattern);
+        }
+
         boardElement.addEventListener("pointerdown", event => {
             if (event.pointerType !== "touch" || gameEnded || touchStart) return;
 
@@ -480,14 +483,15 @@ export async function loadVersus(onBack) {
                 y: event.clientY,
                 pointerId: event.pointerId,
                 wordCell: event.target.closest(".word-match"),
-                fallingCell: event.target.closest(".falling"),
+                axis: null,
+                horizontalSteps: 0,
                 moved: false,
                 accelerated: false
             };
             boardElement.setPointerCapture?.(event.pointerId);
 
             touchHoldTimeout = window.setTimeout(() => {
-                if (!touchStart || gameEnded) return;
+                if (!touchStart || touchStart.moved || gameEnded) return;
                 touchStart.accelerated = true;
                 dropBlock();
                 touchDropInterval = window.setInterval(dropBlock, 180);
@@ -496,8 +500,26 @@ export async function loadVersus(onBack) {
 
         boardElement.addEventListener("pointermove", event => {
             if (event.pointerType !== "touch" || touchStart?.pointerId !== event.pointerId) return;
-            if (Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 12) {
+            const deltaX = event.clientX - touchStart.x;
+            const deltaY = event.clientY - touchStart.y;
+            if (Math.hypot(deltaX, deltaY) <= 12) return;
+
+            if (!touchStart.moved) {
                 touchStart.moved = true;
+                touchStart.axis = Math.abs(deltaX) >= Math.abs(deltaY) ? "horizontal" : "vertical";
+                window.clearTimeout(touchHoldTimeout);
+                touchHoldTimeout = null;
+            }
+
+            if (touchStart.axis !== "horizontal") return;
+            const cellWidth = boardElement.getBoundingClientRect().width / BOARD_COLUMNS;
+            const desiredSteps = Math.trunc(deltaX / Math.max(22, cellWidth * .9));
+            let remainingSteps = desiredSteps - touchStart.horizontalSteps;
+            while (remainingSteps !== 0) {
+                const direction = Math.sign(remainingSteps);
+                if (!moveHorizontally(direction)) break;
+                touchStart.horizontalSteps += direction;
+                remainingSteps -= direction;
             }
         });
 
@@ -505,7 +527,6 @@ export async function loadVersus(onBack) {
             if (event.pointerType !== "touch" || touchStart?.pointerId !== event.pointerId) return;
 
             const tappedWord = touchStart.wordCell;
-            const tappedFallingPiece = touchStart.fallingCell;
             const moved = touchStart.moved;
             const accelerated = touchStart.accelerated;
             clearTouchDrop();
@@ -518,13 +539,7 @@ export async function loadVersus(onBack) {
                 return;
             }
 
-            if (tappedFallingPiece) {
-                selectNextLetter();
-                return;
-            }
-
-            const bounds = boardElement.getBoundingClientRect();
-            moveHorizontally(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
+            selectNextLetter();
         });
 
         boardElement.addEventListener("pointercancel", () => {
@@ -600,6 +615,7 @@ export async function loadVersus(onBack) {
 
         function selectNextLetter() {
             selectedLetterIndex = (selectedLetterIndex + 1) % PIECE_SIZE;
+            vibrate(6);
             renderBatch();
             renderPlayerBoard();
             syncState();
@@ -607,14 +623,15 @@ export async function loadVersus(onBack) {
 
         function moveHorizontally(dir) {
             const nextCol = activeBlock.column + dir;
-            if (canMove(activeBlock.row, nextCol)) {
-                activeBlock.column = nextCol;
-                horizontalMovement = dir;
-                playEffect("select", .38);
-                renderPlayerBoard();
-                horizontalMovement = 0;
-                syncState();
-            }
+            if (!canMove(activeBlock.row, nextCol)) return false;
+            activeBlock.column = nextCol;
+            horizontalMovement = dir;
+            playEffect("select", .38);
+            vibrate(5);
+            renderPlayerBoard();
+            horizontalMovement = 0;
+            syncState();
+            return true;
         }
 
         function canMove(r, c) {

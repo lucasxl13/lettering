@@ -152,7 +152,7 @@
     background: color-mix(in srgb, var(--primary-color) 16%, var(--background));
 }
 
-/* Interface mais legível para seleção de modos e decks. */
+/* O menu principal é a referência visual para os demais menus. */
 .modes-screen,
 .mode-selector {
     font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
@@ -164,16 +164,27 @@
 }
 
 .mode-menu {
-    width: clamp(280px, 46vw, 400px);
+    width: clamp(200px, 40vw, 300px);
 }
 
 .mode-menu-button {
     font-family: inherit;
-    font-size: clamp(14px, 1.8vw, 17px);
-    font-weight: 700;
-    letter-spacing: .025em;
-    border-width: 1px;
+    min-height: 56px;
+    padding: 15px;
+    font-size: clamp(16px, 2vw, 22px);
+    font-weight: 400;
+    letter-spacing: normal;
+    background: color-mix(in srgb, var(--primary-color) 15%, var(--background));
+    border-width: 2px;
     border-radius: 10px;
+    box-shadow: 0 0 10px var(--primary-color);
+    transition: transform .3s, background-color .3s, box-shadow .3s;
+}
+
+.mode-menu-button:hover:not(:disabled) {
+    transform: scale(1.08);
+    background: color-mix(in srgb, var(--primary-color) 35%, var(--background));
+    box-shadow: 0 0 20px var(--primary-color), 0 0 40px var(--primary-color);
 }
 
 .primary-mode-button,
@@ -186,7 +197,7 @@
 #flashcards-decks-button strong {
     color: var(--primary-color);
     font-size: 18px;
-    font-weight: 800;
+    font-weight: 400;
 }
 
 #flashcards-decks-button {
@@ -208,51 +219,25 @@
 
 .flashcards-tools .mode-menu-button {
     min-width: 0;
-    min-height: 72px;
-    display: grid;
-    grid-template-columns: 36px minmax(0, 1fr);
+    min-height: 56px;
+    display: flex;
     align-items: center;
-    justify-items: start;
-    gap: 10px;
-    padding: 12px 14px;
-    text-align: left;
-    font-size: clamp(13px, 1.6vw, 15px);
+    justify-content: center;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: clamp(14px, 1.8vw, 16px);
     line-height: 1.15;
-    background: linear-gradient(145deg, color-mix(in srgb, var(--surface-color) 88%, var(--primary-color)), var(--surface-color));
+    white-space: nowrap;
+    background: color-mix(in srgb, var(--primary-color) 15%, var(--background));
 }
 
-.flashcards-tool-icon {
-    width: 34px;
-    height: 34px;
-    display: grid;
-    place-items: center;
-    color: var(--primary-color);
-    font-size: 19px;
-    font-weight: 800;
-    line-height: 1;
-    border: 1px solid color-mix(in srgb, var(--primary-color) 55%, transparent);
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+.flashcards-tools .mode-menu-button:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.035);
 }
 
 #flashcards-statistics-button {
     grid-column: 1 / -1;
-    min-height: 48px;
-    grid-template-columns: auto auto;
-    justify-content: center;
-    justify-items: center;
-    padding-block: 10px;
-    text-align: center;
-    background: color-mix(in srgb, var(--surface-color) 94%, var(--primary-color));
-}
-
-#flashcards-statistics-button .flashcards-tool-icon {
-    width: auto;
-    height: auto;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    font-size: 16px;
+    min-height: 56px;
 }
 
 .mode-button-kicker {
@@ -357,13 +342,11 @@
 @media (max-width: 520px) {
     .flashcards-tools { gap: 8px; }
     .flashcards-tools .mode-menu-button {
-        grid-template-columns: 32px minmax(0, 1fr);
-        gap: 8px;
-        padding-inline: 10px;
-        font-size: 12px;
+        min-height: 50px;
+        padding-inline: 7px;
+        font-size: 14px;
     }
-    .flashcards-tool-icon { width: 30px; height: 30px; }
-    #flashcards-statistics-button { grid-template-columns: auto auto; }
+    #flashcards-statistics-button { min-height: 50px; }
     .flashcard-selector-actions { grid-template-columns: 1fr; }
     .flashcard-selector-actions .manage-flashcard-decks { order: -1; }
     .flashcard-deck-option { grid-template-columns: 42px minmax(0, 1fr) 24px; }
@@ -669,14 +652,14 @@
     }
 
     .mode-menu {
-        width: min(100%, 380px);
-        gap: 12px;
+        width: min(calc(100% - 48px), 285px);
+        gap: 8px;
     }
 
     .mode-menu-button {
-        min-height: 60px;
-        padding: 14px;
-        font-size: 17px;
+        min-height: 50px;
+        padding: 11px 14px;
+        font-size: 16px;
     }
 
     .primary-mode-button {

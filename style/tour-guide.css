@@ -365,27 +365,6 @@
     transform: translateY(-1px);
 }
 
-.settings-tour-button {
-    width: 100%;
-    min-height: 46px;
-    margin: 2px 0 12px;
-    padding: 10px 14px;
-    color: var(--primary-color);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-    background: rgba(var(--primary-rgb), .08);
-    border: 1px solid rgba(var(--primary-rgb), .62);
-}
-
-.settings-tour-button:hover,
-.settings-tour-button:focus-visible {
-    color: var(--text-color);
-    background: rgba(var(--primary-rgb), .2);
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-}
-
 @keyframes tourFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tourFadeOut { to { opacity: 0; } }
 @keyframes tourCardEnter {
@@ -418,9 +397,15 @@
         bottom: max(10px, env(safe-area-inset-bottom));
         left: 10px;
         width: auto;
-        max-height: min(64vh, 520px);
+        max-height: min(64dvh, 520px);
         padding: 18px;
         transform: none;
+    }
+
+    .tour-guide:not(.has-target) .tour-card {
+        top: 50%;
+        bottom: auto;
+        transform: translateY(-50%);
     }
 
     .tour-card.is-mobile-top {
