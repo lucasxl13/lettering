@@ -3,7 +3,12 @@ import { THEMES, getTheme, setTheme } from "../systems/theme.js";
 import { getVolume, setVolume } from "../systems/audio-settings.js";
 import { RADIO_TRACKS, getRadioTrack, setRadioTrack } from "../systems/audio-player.js";
 import { registerModal } from "../systems/modal.js";
-import { getPwaInstallState, isAppleMobileDevice, requestPwaInstall } from "../systems/pwa-install.js";
+import {
+    getPwaInstallState,
+    isAppleMobileDevice,
+    isStandaloneApp,
+    requestPwaInstall
+} from "../systems/pwa-install.js";
 import { exitFullscreen, isFullscreen, requestMobileFullscreen } from "../systems/fullscreen.js";
 
 export function openSettings() {
@@ -78,20 +83,23 @@ export function openSettings() {
     });
 
     const installButton = overlay.querySelector(".settings-install-button");
-    installButton.addEventListener("click", async () => {
-        installButton.disabled = true;
-        const result = await requestPwaInstall();
-        installButton.disabled = false;
-        if (result === "accepted" || result === "dismissed") {
-            updateInstallButton(installButton);
-            return;
-        }
-        if (result !== "installed") openInstallInstructions(result);
-    });
+    if (installButton) {
+        installButton.addEventListener("click", async () => {
+            installButton.disabled = true;
+            const result = await requestPwaInstall();
+            installButton.disabled = false;
+            if (result === "accepted" || result === "dismissed") {
+                updateInstallButton(installButton);
+                return;
+            }
+            if (result !== "installed") openInstallInstructions(result);
+        });
 
-    window.addEventListener("lettering-install-state-change", () => {
-        updateInstallButton(installButton);
-    }, { signal: modal.signal });
+        window.addEventListener("lettering-install-state-change", () => {
+            if (isStandaloneApp()) installButton.remove();
+            else updateInstallButton(installButton);
+        }, { signal: modal.signal });
+    }
 
     const fullscreenToggle = overlay.querySelector(".settings-toggle-input");
     if (fullscreenToggle) {
@@ -114,12 +122,13 @@ export function openSettings() {
 
 function createInstallButton() {
     const active = getPwaInstallState() === "installed";
+    if (active) return "";
     return `
-        <button type="button" class="settings-install-button" ${active ? "disabled" : ""}>
+        <button type="button" class="settings-install-button">
             <span class="settings-install-icon" aria-hidden="true">＋</span>
             <span>
                 <strong>${t("add_to_home_screen")}</strong>
-                <small>${t(active ? "pwa_active" : "pwa_install_hint")}</small>
+                <small>${t("pwa_install_hint")}</small>
             </span>
         </button>
     `;
@@ -128,7 +137,7 @@ function createInstallButton() {
 function createFullscreenToggle() {
     const root = document.documentElement;
     const supported = Boolean(root.requestFullscreen || root.webkitRequestFullscreen || root.webkitRequestFullScreen);
-    if (!supported || isAppleMobileDevice()) return "";
+    if (!supported || isAppleMobileDevice() || isStandaloneApp()) return "";
     return `
         <label class="settings-toggle">
             <span>${t("fullscreen_mode")}</span>
