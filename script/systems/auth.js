@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config.js";
+import { beginNetworkActivity } from "./loading.js";
 
 const SESSION_KEY = "lettering-auth-session";
 
@@ -101,26 +102,30 @@ export async function logout() {
 }
 
 async function requestAuth(path, options) {
-    let response;
-
+    const finishLoading = beginNetworkActivity();
     try {
-        response = await fetch(`${API_BASE_URL}${path}`, options);
-    } catch {
-        throw new AuthRequestError("NETWORK_ERROR", "Could not connect to the server");
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}${path}`, options);
+        } catch {
+            throw new AuthRequestError("NETWORK_ERROR", "Could not connect to the server");
+        }
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            throw new AuthRequestError(
+                data?.error?.code || "AUTH_REQUEST_FAILED",
+                data?.error?.message || "Authentication request failed",
+                response.status,
+                data?.error?.details
+            );
+        }
+
+        return data;
+    } finally {
+        finishLoading();
     }
-
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-        throw new AuthRequestError(
-            data?.error?.code || "AUTH_REQUEST_FAILED",
-            data?.error?.message || "Authentication request failed",
-            response.status,
-            data?.error?.details
-        );
-    }
-
-    return data;
 }
 
 function saveSession(session) {

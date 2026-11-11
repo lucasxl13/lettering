@@ -3,6 +3,8 @@ import { startGridEffects } from "../systems/grid-effects.js";
 import { applyProgressionAward, checkSession, getSession } from "../systems/auth.js";
 import { WS_BASE_URL } from "../config.js";
 import { playEffect } from "../systems/audio-player.js";
+import { maybeStartTour, startTour } from "../systems/tour-guide.js";
+import { setButtonLoading } from "../systems/loading.js";
 
 const BOARD_ROWS = 10;
 const BOARD_COLUMNS = 9;
@@ -23,6 +25,7 @@ export async function loadVersus(onBack) {
     let socket = null;
     let socketAuthenticated = false;
     let pendingSocketAction = null;
+    let pendingSocketButton = null;
     let roomCode = null;
     let isHost = false;
     let opponentUsername = t("opponent");
@@ -59,13 +62,18 @@ export async function loadVersus(onBack) {
 
     renderLobby();
 
-    function connectSocket(onOpen) {
+    function connectSocket(onOpen, triggerButton = null) {
         if (socket && socket.readyState === WebSocket.OPEN && socketAuthenticated) {
             onOpen?.();
             return;
         }
 
         pendingSocketAction = onOpen ?? null;
+        if (pendingSocketButton && pendingSocketButton !== triggerButton) {
+            setButtonLoading(pendingSocketButton, false);
+        }
+        pendingSocketButton = triggerButton;
+        setButtonLoading(pendingSocketButton, true, t("connecting_server"));
         if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
         socket = new WebSocket(`${WS_BASE_URL}?token=${encodeURIComponent(session.token)}`);
@@ -81,10 +89,12 @@ export async function loadVersus(onBack) {
         };
 
         socket.onerror = () => {
+            finishSocketLoading();
             showRequestError(t("connection_problem"));
         };
 
         socket.onclose = () => {
+            finishSocketLoading();
             socketAuthenticated = false;
             updateConnectionStatus(false);
             if (gameStarted && !gameEnded) {
@@ -104,6 +114,7 @@ export async function loadVersus(onBack) {
             case "authenticated": {
                 socketAuthenticated = true;
                 updateConnectionStatus(true);
+                finishSocketLoading();
                 const action = pendingSocketAction;
                 pendingSocketAction = null;
                 action?.();
@@ -187,6 +198,7 @@ export async function loadVersus(onBack) {
         opponentUsername = t("opponent");
         app.innerHTML = `
             <main class="versus-screen">
+                <button class="screen-tour-button" id="versus-tour-button" type="button">${t("help")}</button>
                 <section class="versus-lobby">
                     <h2>${t("versus_mode")}</h2>
                     <p class="versus-lobby-description">${t("versus_description")}</p>
@@ -227,19 +239,23 @@ export async function loadVersus(onBack) {
 
         startGridEffects(document.querySelector(".versus-screen"));
 
-        document.getElementById("btn-quick-match").addEventListener("click", () => {
+        const quickMatchButton = document.getElementById("btn-quick-match");
+        const createRoomButton = document.getElementById("btn-create-room");
+        const joinRoomButton = document.getElementById("btn-join-room");
+
+        quickMatchButton.addEventListener("click", () => {
             connectSocket(() => {
                 sendWs({ type: "quick_match" });
-            });
+            }, quickMatchButton);
         });
 
-        document.getElementById("btn-create-room").addEventListener("click", () => {
+        createRoomButton.addEventListener("click", () => {
             connectSocket(() => {
                 sendWs({ type: "create_room" });
-            });
+            }, createRoomButton);
         });
 
-        document.getElementById("btn-join-room").addEventListener("click", () => {
+        joinRoomButton.addEventListener("click", () => {
             const input = document.getElementById("join-room-code");
             const code = input?.value.trim().toUpperCase();
             if (!code || code.length < 4) {
@@ -248,13 +264,20 @@ export async function loadVersus(onBack) {
             }
             connectSocket(() => {
                 sendWs({ type: "join_room", code });
-            });
+            }, joinRoomButton);
         });
 
         document.getElementById("btn-back").addEventListener("click", () => {
             if (socket) socket.close();
             onBack?.();
         });
+        document.getElementById("versus-tour-button").addEventListener("click", () => startTour("versus"));
+        maybeStartTour({ scope: "versus", delay: 460 });
+    }
+
+    function finishSocketLoading() {
+        setButtonLoading(pendingSocketButton, false);
+        pendingSocketButton = null;
     }
 
     function renderWaitingRoom(code) {

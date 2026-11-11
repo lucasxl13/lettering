@@ -41,3 +41,16 @@ test("home-screen installation copy exists in every interface language", () => {
         assert.ok(messages.pwa_ios_instructions);
     }
 });
+
+test("slow-network feedback is translated and cached in the app shell", () => {
+    const worker = readFileSync(new URL("service-worker.js", root), "utf8");
+    const loading = readFileSync(new URL("script/systems/loading.js", root), "utf8");
+    assert.match(worker, /script\/systems\/loading\.js/);
+    assert.match(loading, /beginNetworkActivity/);
+
+    for (const language of ["pt-BR", "en-US", "es-ES"]) {
+        const messages = JSON.parse(readFileSync(new URL(`assets/languages/${language}.json`, root), "utf8"));
+        assert.ok(messages.loading_action);
+        assert.ok(messages.loading_match);
+    }
+});

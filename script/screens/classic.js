@@ -3,6 +3,7 @@ import { startGridEffects } from "../systems/grid-effects.js";
 import { applyProgressionAward, getSession } from "../systems/auth.js";
 import { ApiRequestError } from "../api/apiClient.js";
 import { playEffect } from "../systems/audio-player.js";
+import { maybeStartTour, startTour } from "../systems/tour-guide.js";
 import { createCycleLetterBatch, createWordCycle, registerWordSuccess } from "../systems/word-cycle.js";
 import {
     applyPowerToBoard,
@@ -109,6 +110,7 @@ export async function loadClassic(onBack, options = {}) {
 
     app.innerHTML = `
         <main class="classic-screen">
+            <button class="screen-tour-button" id="game-tour-button" type="button">${t("help")}</button>
             <div class="classic-layout">
                 <section class="board-area">
                     <header class="board-header">
@@ -1097,6 +1099,19 @@ export async function loadClassic(onBack, options = {}) {
 
     document.addEventListener("keydown", handleKeyboard);
     document.getElementById("pause-game").addEventListener("click", openPauseMenu);
+    let pausedBeforeTour = paused;
+    const gameTourOptions = {
+        onOpen: () => {
+            pausedBeforeTour = paused;
+            paused = true;
+        },
+        onClose: () => {
+            paused = pausedBeforeTour;
+        }
+    };
+    document.getElementById("game-tour-button").addEventListener("click", () => {
+        startTour("game", gameTourOptions);
+    });
     updateFoundWordsCount();
     if (foundWords.length > 0) renderFoundWords();
     renderBoard();
@@ -1104,6 +1119,7 @@ export async function loadClassic(onBack, options = {}) {
     renderCombo();
     startGridEffects(screen);
     showMobileGestureHint();
+    maybeStartTour({ scope: "game", delay: 360, ...gameTourOptions });
 
     function showMobileGestureHint() {
         const isTouchDevice = window.matchMedia("(hover: none) and (pointer: coarse)").matches;

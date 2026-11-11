@@ -9,6 +9,8 @@ import { getRanking } from "../api/matchesApi.js";
 import { loadFlashcards } from "./flashcards.js";
 import { GENERAL_DECK_ID } from "../systems/flashcards.js";
 import { getFlashcards } from "../api/flashcardsApi.js";
+import { maybeStartTour, startTour } from "../systems/tour-guide.js";
+import { setButtonLoading } from "../systems/loading.js";
 
 const SELECTED_MODE_KEY = "lettering-selected-mode";
 const SELECTED_FLASHCARD_DECK_KEY = "lettering-selected-flashcard-deck";
@@ -69,6 +71,7 @@ export function loadModes(onBack) {
 
     app.innerHTML = `
         <main class="modes-screen">
+            <button class="screen-tour-button" id="modes-tour-button" type="button">${t("help")}</button>
             <h1>LETTERING</h1>
 
             <div class="mode-menu">
@@ -174,7 +177,9 @@ export function loadModes(onBack) {
 
     playButton.addEventListener("click", () => {
         if (selectedMode.id === "flashcards") {
-            loadFlashcards(() => loadModes(onBack), "study", selectedFlashcardDeckId);
+            void loadDestination(() => loadFlashcards(
+                () => loadModes(onBack), "study", selectedFlashcardDeckId
+            ), t("fc_loading"));
             return;
         }
 
@@ -183,7 +188,7 @@ export function loadModes(onBack) {
                 window.alert(t("versus_login_required"));
                 return;
             }
-            loadVersus(() => loadModes(onBack));
+            void loadDestination(() => loadVersus(() => loadModes(onBack)), t("connecting_server"));
             return;
         }
 
@@ -191,25 +196,37 @@ export function loadModes(onBack) {
             openThemeSelector(null, theme => {
                 selectedTheme = theme;
                 themeButton.innerHTML = createThemeLabel(theme);
-                openWordGoalSelector(wordTarget => startSelectedMode(wordTarget));
+                openWordGoalSelector(wordTarget => void startSelectedMode(wordTarget));
             });
             return;
         }
 
         if (selectedMode.id === "learning") {
-            openWordGoalSelector(wordTarget => startSelectedMode(wordTarget));
+            openWordGoalSelector(wordTarget => void startSelectedMode(wordTarget));
             return;
         }
 
-        startSelectedMode(null);
+        void startSelectedMode(null);
     });
 
-    function startSelectedMode(wordTarget) {
-        loadClassic(() => loadModes(onBack), {
-            mode: selectedMode.id,
-            theme: getGameTheme(selectedTheme),
-            wordTarget
-        });
+    async function startSelectedMode(wordTarget) {
+        await loadDestination(
+            () => loadClassic(() => loadModes(onBack), {
+                mode: selectedMode.id,
+                theme: getGameTheme(selectedTheme),
+                wordTarget
+            }),
+            t("loading_match")
+        );
+    }
+
+    async function loadDestination(loader, label) {
+        setButtonLoading(playButton, true, label);
+        try {
+            await loader();
+        } finally {
+            setButtonLoading(playButton, false);
+        }
     }
 
     document.getElementById("open-mode-selector").addEventListener("click", () => {
@@ -260,6 +277,8 @@ export function loadModes(onBack) {
     });
 
     document.getElementById("back-to-menu").addEventListener("click", onBack);
+    document.getElementById("modes-tour-button").addEventListener("click", () => startTour("modes"));
+    maybeStartTour({ scope: "modes", delay: 480 });
 }
 
 function openThemeSelector(selectedThemeId, onSelect) {

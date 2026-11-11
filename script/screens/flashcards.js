@@ -3,6 +3,7 @@ import { getSession } from "../systems/auth.js";
 import { GENERAL_DECK_ID, MAX_CARDS, scheduleCard, dueCards } from "../systems/flashcards.js";
 import { getFlashcards, getFlashcardShop, getFlashcardShopDeck, postFlashcardAction } from "../api/flashcardsApi.js";
 import { playEffect } from "../systems/audio-player.js";
+import { maybeStartTour, startTour } from "../systems/tour-guide.js";
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const button = (action, label, extra = "") => `<button type="button" data-action="${action}" ${extra}>${label}</button>`;
@@ -157,10 +158,12 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
         }
         const inDeck = (view === "edit" || view === "study") && deck;
         const isStandaloneEntry = view === standaloneEntryView;
-        app.innerHTML = `<main class="fc-screen"><header class="fc-header">${button("back", "←", `aria-label="${t("back")}"`)}<h1>${t("flashcards_mode")}</h1><span class="fc-header-spacer" aria-hidden="true"></span></header>
+        app.innerHTML = `<main class="fc-screen"><button class="screen-tour-button" id="flashcards-tour-button" type="button">${t("help")}</button><header class="fc-header">${button("back", "←", `aria-label="${t("back")}"`)}<h1>${t("flashcards_mode")}</h1><span class="fc-header-spacer" aria-hidden="true"></span></header>
             ${inDeck || isStandaloneEntry || view === "shop" ? "" : `<nav class="fc-tabs fc-main-tabs" aria-label="${t("flashcards_mode")}">${[["decks", "▦", "my_decks"], ["create", "+", "fc_create"]].map(([tab, icon, key]) => button(tab, `<span aria-hidden="true">${icon}</span>${t(key)}`, `aria-current="${view === tab ? "page" : "false"}"`)).join("")}</nav>`}
             <div class="fc-error" role="alert"></div><section class="fc-content fc-view-${view}" aria-label="${t("flashcards_mode")}">${content}</section></main>`;
         app.querySelectorAll("[data-action]").forEach(element => element.addEventListener("click", () => action(element.dataset).catch(() => error(t("fc_save_error")))));
+        app.querySelector("#flashcards-tour-button")?.addEventListener("click", () => startTour("flashcards"));
+        if (view === "decks") maybeStartTour({ scope: "flashcards", delay: 520 });
         app.querySelector("#fc-create")?.addEventListener("submit", async event => {
             event.preventDefault();
             const name = event.target.elements.name.value.trim();

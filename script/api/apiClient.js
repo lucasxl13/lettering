@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../config.js";
 import { getSession } from "../systems/auth.js";
+import { beginNetworkActivity } from "../systems/loading.js";
 
 export class ApiRequestError extends Error {
     constructor(code, message, status = 0, details = null) {
@@ -20,22 +21,27 @@ export async function requestApi(path, options = {}) {
         headers.set("Content-Type", "application/json");
     }
 
-    let response;
+    const finishLoading = beginNetworkActivity();
     try {
-        response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
-    } catch {
-        throw new ApiRequestError("NETWORK_ERROR", "Could not connect to the server");
-    }
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        } catch {
+            throw new ApiRequestError("NETWORK_ERROR", "Could not connect to the server");
+        }
 
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-        throw new ApiRequestError(
-            data?.error?.code ?? "API_REQUEST_FAILED",
-            data?.error?.message ?? "API request failed",
-            response.status,
-            data?.error?.details ?? null
-        );
-    }
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new ApiRequestError(
+                data?.error?.code ?? "API_REQUEST_FAILED",
+                data?.error?.message ?? "API request failed",
+                response.status,
+                data?.error?.details ?? null
+            );
+        }
 
-    return data;
+        return data;
+    } finally {
+        finishLoading();
+    }
 }

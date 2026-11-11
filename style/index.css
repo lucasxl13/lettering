@@ -176,3 +176,60 @@ button {
     height: 100%;
     min-height: 100svh;
 }
+
+.network-status {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: 50%;
+    z-index: 1200;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    color: var(--text-color);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    background: color-mix(in srgb, var(--surface-color) 92%, black);
+    border: 1px solid var(--primary-color);
+    border-radius: 7px;
+    box-shadow: 0 0 22px rgba(var(--primary-rgb), .38), 0 16px 40px rgba(0, 0, 0, .45);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -18px) scale(.96);
+    transition: opacity .22s ease, transform .3s cubic-bezier(.2, .8, .2, 1);
+}
+
+.network-status.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+}
+
+.network-status-spinner,
+.button-loading-spinner {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+    border: 2px solid rgba(255, 255, 255, .24);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(var(--primary-rgb), .35);
+    animation: networkSpinner .72s linear infinite;
+}
+
+button.is-loading {
+    cursor: wait;
+}
+
+button.is-loading > span {
+    position: relative;
+}
+
+@keyframes networkSpinner { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .network-status { transition: none; }
+    .network-status-spinner,
+    .button-loading-spinner { animation-duration: 1.5s; }
+}

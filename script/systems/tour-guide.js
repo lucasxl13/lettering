@@ -1,53 +1,74 @@
 import { getSession } from "./auth.js";
 import { t } from "./language.js";
 
-export const TOUR_VERSION = 1;
+export const TOUR_VERSION = 2;
+
+const TOUR_SCREENS = {
+    menu: ".menu",
+    modes: ".modes-screen",
+    game: ".classic-screen",
+    versus: ".versus-lobby",
+    flashcards: ".fc-screen"
+};
 
 let activeTour = null;
 let pendingStartTimer = null;
+let pendingStartScope = null;
 
-export function getTourStorageKey(userId) {
-    return `lettering-tour:${TOUR_VERSION}:${encodeURIComponent(String(userId))}`;
+export function getTourStorageKey(userId, scope = "menu") {
+    const suffix = scope === "menu" ? "" : `:${encodeURIComponent(scope)}`;
+    return `lettering-tour:${TOUR_VERSION}:${encodeURIComponent(String(userId))}${suffix}`;
 }
 
-export function hasCompletedTour(userId, storage = window.localStorage) {
+export function hasCompletedTour(userId, storage = window.localStorage, scope = "menu") {
     if (!userId) return false;
 
     try {
-        return storage.getItem(getTourStorageKey(userId)) === "complete";
+        return storage.getItem(getTourStorageKey(userId, scope)) === "complete";
     } catch {
         return false;
     }
 }
 
-export function shouldShowTour(session, storage = window.localStorage) {
-    return Boolean(session?.user?.id) && !hasCompletedTour(session.user.id, storage);
+export function shouldShowTour(session, storage = window.localStorage, scope = "menu") {
+    const owner = getTourOwner(session, scope);
+    return Boolean(owner) && !hasCompletedTour(owner, storage, scope);
 }
 
-export function maybeStartTour({ delay = 700 } = {}) {
+export function maybeStartTour({ scope = "menu", delay = 700, onOpen, onClose } = {}) {
     const session = getSession();
-    if (!shouldShowTour(session) || activeTour || pendingStartTimer) return;
+    if (!shouldShowTour(session, window.localStorage, scope) || activeTour) return false;
+    if (pendingStartTimer) {
+        if (pendingStartScope === scope) return false;
+        window.clearTimeout(pendingStartTimer);
+        pendingStartTimer = null;
+    }
+    pendingStartScope = scope;
 
     pendingStartTimer = window.setTimeout(() => {
         pendingStartTimer = null;
+        pendingStartScope = null;
         const currentSession = getSession();
-        if (!shouldShowTour(currentSession) || activeTour) return;
-        if (!document.querySelector(".menu") || document.querySelector(".login-overlay, .settings-overlay")) return;
-        startTour();
+        if (!shouldShowTour(currentSession, window.localStorage, scope) || activeTour) return;
+        if (!document.querySelector(TOUR_SCREENS[scope]) || document.querySelector(".login-overlay, .settings-overlay, .mode-selector-overlay, .pause-overlay")) return;
+        startTour(scope, { onOpen, onClose });
     }, delay);
+    return true;
 }
 
-export function startTour() {
+export function startTour(scope = "menu", { onOpen, onClose } = {}) {
     const session = getSession();
-    if (!session?.user?.id) return false;
+    const owner = getTourOwner(session, scope);
+    if (!owner || !TOUR_SCREENS[scope]) return false;
 
     if (pendingStartTimer) {
         window.clearTimeout(pendingStartTimer);
         pendingStartTimer = null;
+        pendingStartScope = null;
     }
     activeTour?.close(false);
 
-    const steps = createSteps();
+    const steps = createSteps(scope);
     const previousFocus = document.activeElement;
     const lifecycle = new AbortController();
     const overlay = document.createElement("div");
@@ -62,13 +83,16 @@ export function startTour() {
     const card = overlay.querySelector(".tour-card");
     let stepIndex = 0;
     let closed = false;
+    let transitioning = false;
 
+    overlay.dataset.scope = scope;
     document.body.appendChild(overlay);
     document.body.classList.add("tour-is-open");
+    onOpen?.();
 
     function markComplete() {
         try {
-            window.localStorage.setItem(getTourStorageKey(session.user.id), "complete");
+            window.localStorage.setItem(getTourStorageKey(owner, scope), "complete");
         } catch {
             // The tour still works when browser storage is unavailable.
         }
@@ -81,28 +105,38 @@ export function startTour() {
         lifecycle.abort();
         overlay.classList.add("is-leaving");
         document.body.classList.remove("tour-is-open");
-        window.setTimeout(() => overlay.remove(), 180);
+        window.setTimeout(() => overlay.remove(), 260);
         activeTour = null;
+        onClose?.({ completed: remember, scope });
         if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     }
 
     function changeStep(offset) {
+        if (transitioning) return;
         const nextIndex = Math.min(steps.length - 1, Math.max(0, stepIndex + offset));
         if (nextIndex === stepIndex) return;
-        stepIndex = nextIndex;
-        render();
+        transitioning = true;
+        const direction = offset > 0 ? "forward" : "backward";
+        card.classList.remove("is-entering");
+        card.classList.add(`is-exiting-${direction}`);
+        window.setTimeout(() => {
+            stepIndex = nextIndex;
+            render(direction);
+            transitioning = false;
+        }, 150);
     }
 
-    function render() {
+    function render(direction = "initial") {
         const step = steps[stepIndex];
-        const target = step.selector ? document.querySelector(step.selector) : null;
+        const target = resolveTarget(step.selector);
         const isLast = stepIndex === steps.length - 1;
         const progressText = t("tour_step_progress")
             .replace("{current}", String(stepIndex + 1))
             .replace("{total}", String(steps.length));
 
         overlay.classList.toggle("has-target", Boolean(target));
-        card.classList.remove("is-entering");
+        card.classList.remove("is-entering", "is-exiting-forward", "is-exiting-backward");
+        card.dataset.direction = direction;
         card.innerHTML = `
             <div class="tour-card-glow" aria-hidden="true"></div>
             <div class="tour-card-header">
@@ -238,12 +272,35 @@ export function startTour() {
     window.addEventListener("orientationchange", () => render(), { signal: lifecycle.signal });
     document.addEventListener("keydown", handleKeydown, { signal: lifecycle.signal });
 
-    activeTour = { close };
+    activeTour = { close, scope };
     render();
     return true;
 }
 
-function createSteps() {
+function getTourOwner(session, scope) {
+    if (session?.user?.id) return session.user.id;
+    return ["modes", "game"].includes(scope) ? "guest" : null;
+}
+
+function resolveTarget(selectors) {
+    const candidates = Array.isArray(selectors) ? selectors : selectors ? [selectors] : [];
+    for (const selector of candidates) {
+        const target = document.querySelector(selector);
+        if (!target) continue;
+        const rect = target.getBoundingClientRect();
+        const style = window.getComputedStyle(target);
+        if (rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none") {
+            return target;
+        }
+    }
+    return null;
+}
+
+function createSteps(scope) {
+    if (scope === "modes") return createModesSteps();
+    if (scope === "game") return createGameSteps();
+    if (scope === "versus") return createVersusSteps();
+    if (scope === "flashcards") return createFlashcardSteps();
     return [
         {
             selector: null,
@@ -290,6 +347,152 @@ function createSteps() {
     ];
 }
 
+function createModesSteps() {
+    return [
+        {
+            selector: null,
+            visual: "selector",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_modes_welcome_title"),
+            body: t("tour_modes_welcome_body")
+        },
+        {
+            selector: "#open-mode-selector",
+            visual: "selector",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_modes_select_title"),
+            body: t("tour_modes_select_body")
+        },
+        {
+            selector: "#play-selected-mode",
+            visual: "play",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_modes_start_title"),
+            body: t("tour_modes_start_body")
+        },
+        {
+            selector: ["#open-theme-selector:not(.hidden)", "#open-mode-selector"],
+            visual: "learning",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_modes_learning_title"),
+            body: t("tour_modes_learning_body")
+        },
+        {
+            selector: "#ranking-button",
+            visual: "ranking",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_modes_ranking_title"),
+            body: t("tour_modes_ranking_body")
+        }
+    ];
+}
+
+function createGameSteps() {
+    return [
+        {
+            selector: ".current-batch",
+            visual: "letters",
+            kicker: t("tour_ready_kicker"),
+            title: t("tour_game_letters_title"),
+            body: t("tour_game_letters_body")
+        },
+        {
+            selector: ".classic-board",
+            visual: "controls",
+            kicker: t("tour_ready_kicker"),
+            title: t("tour_game_board_title"),
+            body: t("tour_game_board_body")
+        },
+        {
+            selector: ["#active-word-cycle:not(.hidden)", ".classic-board"],
+            visual: "words",
+            kicker: t("tour_ready_kicker"),
+            title: t("tour_game_words_title"),
+            body: t("tour_game_words_body")
+        },
+        {
+            selector: "#power-toolbar",
+            visual: "powers",
+            kicker: t("tour_ready_kicker"),
+            title: t("tour_game_powers_title"),
+            body: t("tour_game_powers_body")
+        },
+        {
+            selector: ".found-words-panel",
+            visual: "history",
+            kicker: t("tour_ready_kicker"),
+            title: t("tour_game_history_title"),
+            body: t("tour_game_history_body")
+        },
+        {
+            selector: "#pause-game",
+            visual: "pause",
+            kicker: t("tour_ready_kicker"),
+            title: t("tour_game_pause_title"),
+            body: t("tour_game_pause_body")
+        }
+    ];
+}
+
+function createVersusSteps() {
+    return [
+        {
+            selector: "#btn-quick-match",
+            visual: "versus",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_versus_quick_title"),
+            body: t("tour_versus_quick_body")
+        },
+        {
+            selector: "#btn-create-room",
+            visual: "room",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_versus_room_title"),
+            body: t("tour_versus_room_body")
+        },
+        {
+            selector: ".join-room-box",
+            visual: "code",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_versus_join_title"),
+            body: t("tour_versus_join_body")
+        }
+    ];
+}
+
+function createFlashcardSteps() {
+    return [
+        {
+            selector: ".fc-dashboard",
+            visual: "cards",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_cards_overview_title"),
+            body: t("tour_cards_overview_body")
+        },
+        {
+            selector: ".fc-main-tabs",
+            visual: "decks",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_cards_create_title"),
+            body: t("tour_cards_create_body")
+        },
+        {
+            selector: [".fc-decks", ".fc-empty-decks"],
+            visual: "study",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_cards_study_title"),
+            body: t("tour_cards_study_body")
+        },
+        {
+            selector: ["[data-action='open-shop']", ".fc-heading"],
+            visual: "community",
+            kicker: t("tour_play_kicker"),
+            title: t("tour_cards_community_title"),
+            body: t("tour_cards_community_body")
+        }
+    ];
+}
+
 function createVisual(type) {
     if (type === "letters") {
         return `<span class="tour-letter">W</span><span class="tour-letter">O</span><span class="tour-letter">R</span><span class="tour-letter">D</span>`;
@@ -298,6 +501,25 @@ function createVisual(type) {
     if (type === "modes") return `<span>CLÁSSICO</span><span>FLASHCARDS</span><span>1 × 1</span>`;
     if (type === "settings") return `<span class="tour-gear">⚙</span><i></i><i></i><i></i>`;
     if (type === "language") return `<span>PT</span><span>EN</span><span>ES</span>`;
+    if (type === "selector") return `
+        <span>${escapeHtml(t("classic_mode"))}</span>
+        <span>${escapeHtml(t("learning_mode"))}</span>
+        <span>${escapeHtml(t("hardcore_mode"))}</span>
+    `;
+    if (type === "play") return `<span class="tour-play-triangle"></span><b>${escapeHtml(t("play"))}</b>`;
+    if (type === "learning") return `<span>${escapeHtml(t("theme"))}</span><i></i><span>5 · 10 · 25 · 50</span>`;
+    if (type === "ranking") return `<b>1</b><span></span><b>2</b><span></span><b>3</b>`;
+    if (type === "controls") return `<kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>Q</kbd>`;
+    if (type === "words") return `<span>WORD</span><span>LEARN</span><span>PLAY</span>`;
+    if (type === "powers") return `<i></i><i></i><i></i><i></i>`;
+    if (type === "history") return `<span></span><span></span><span></span>`;
+    if (type === "pause") return `<i></i><i></i>`;
+    if (type === "versus") return `<b>1</b><span>VS</span><b>1</b>`;
+    if (type === "room") return `<span class="tour-room-node"></span><i></i><span class="tour-room-node"></span>`;
+    if (type === "code") return `<b>A</b><b>B</b><b>C</b><b>1</b><b>2</b><b>3</b>`;
+    if (type === "cards" || type === "decks") return `<span>WORD</span><span>PALAVRA</span>`;
+    if (type === "study") return `<span>WORD</span><i></i><span>${escapeHtml(t("fc_good"))}</span>`;
+    if (type === "community") return `<span class="tour-room-node"></span><i></i><span class="tour-room-node"></span><i></i><span class="tour-room-node"></span>`;
     return `<span class="tour-ready-mark">✓</span><span class="tour-ready-pulse"></span>`;
 }
 

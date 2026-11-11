@@ -33,3 +33,25 @@ test("automatic tour only appears for an authenticated user who has not complete
     assert.equal(shouldShowTour(session, storage), false);
     assert.equal(shouldShowTour(null, storage), false);
 });
+
+test("screen tours keep independent completion state", () => {
+    const storage = storageWith();
+    const session = { user: { id: "player-1" } };
+
+    storage.setItem(getTourStorageKey("player-1", "modes"), "complete");
+
+    assert.equal(shouldShowTour(session, storage, "modes"), false);
+    assert.equal(shouldShowTour(session, storage, "game"), true);
+    assert.notEqual(
+        getTourStorageKey("player-1", "modes"),
+        getTourStorageKey("player-1", "game")
+    );
+});
+
+test("guests receive mode and game help without receiving account onboarding", () => {
+    const storage = storageWith();
+
+    assert.equal(shouldShowTour(null, storage, "menu"), false);
+    assert.equal(shouldShowTour(null, storage, "modes"), true);
+    assert.equal(shouldShowTour(null, storage, "game"), true);
+});

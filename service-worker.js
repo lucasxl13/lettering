@@ -1,9 +1,10 @@
-const CACHE_NAME = "lettering-shell-v4";
+const CACHE_NAME = "lettering-shell-v5";
 const APP_SHELL = [
     "./", "./index.html", "./manifest.webmanifest",
     "./style/index.css", "./style/access.css", "./style/menu.css", "./style/modes.css",
     "./style/classic.css", "./style/flashcards.css", "./style/versus.css", "./style/tour-guide.css",
-    "./script/main.js", "./assets/languages/pt-BR.json",
+    "./script/main.js", "./script/systems/loading.js", "./script/systems/tour-guide.js",
+    "./assets/languages/pt-BR.json", "./assets/languages/en-US.json", "./assets/languages/es-ES.json",
     "./assets/icons/lettering-192.png", "./assets/icons/lettering-512.png"
 ];
 
