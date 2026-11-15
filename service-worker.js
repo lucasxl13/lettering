@@ -1,4 +1,4 @@
-const CACHE_NAME = "lettering-shell-v5";
+const CACHE_NAME = "lettering-shell-v6";
 const APP_SHELL = [
     "./", "./index.html", "./manifest.webmanifest",
     "./style/index.css", "./style/access.css", "./style/menu.css", "./style/modes.css",
@@ -23,6 +23,8 @@ self.addEventListener("fetch", event => {
     const request = event.request;
     const url = new URL(request.url);
     if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.includes("/api/")) return;
+    // Audio is fetched in byte ranges (206 Partial Content), which the Cache API rejects.
+    if (request.headers.has("range")) return;
 
     if (request.mode === "navigate") {
         event.respondWith(fetch(request).then(response => {
@@ -35,7 +37,7 @@ self.addEventListener("fetch", event => {
 
     event.respondWith(caches.match(request).then(cached => {
         const network = fetch(request).then(response => {
-            if (response.ok) {
+            if (response.status === 200) {
                 const copy = response.clone();
                 caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
             }

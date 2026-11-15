@@ -91,7 +91,7 @@ export function loadModes(onBack) {
                 </button>
 
                 <button
-                    class="mode-menu-button ranking-button ${selectedMode.id === "flashcards" ? "hidden" : ""}"
+                    class="mode-menu-button ranking-button ${hasRanking(selectedMode.id) ? "" : "hidden"}"
                     id="ranking-button"
                     ${session ? "" : "disabled"}
                 >
@@ -236,7 +236,7 @@ export function loadModes(onBack) {
             localStorage.setItem(SELECTED_MODE_KEY, mode.id);
             playButton.innerHTML = createPlayLabel(mode);
             themeButton.classList.toggle("hidden", mode.id !== "learning");
-            rankingButton.classList.toggle("hidden", ["flashcards", "versus"].includes(mode.id));
+            rankingButton.classList.toggle("hidden", !hasRanking(mode.id));
             flashcardsTools.classList.toggle("hidden", mode.id !== "flashcards");
             flashcardsMenuButtons.forEach(button => {
                 if (button.id === "flashcards-decks-button") {
@@ -254,7 +254,7 @@ export function loadModes(onBack) {
     });
 
     rankingButton.addEventListener("click", () => {
-        if (!session) return;
+        if (!session || !hasRanking(selectedMode.id)) return;
         if (selectedMode.id !== "learning") {
             openRanking({ mode: selectedMode.id }, session);
             return;
@@ -312,6 +312,11 @@ function openThemeSelector(selectedThemeId, onSelect) {
     });
 
     overlay.querySelector(".close-theme-selector").addEventListener("click", modal.close);
+}
+
+// Only these modes have a server-side ranking; flashcards and versus do not.
+function hasRanking(modeId) {
+    return ["classic", "learning", "hardcore"].includes(modeId);
 }
 
 async function openRanking(filters, session) {
