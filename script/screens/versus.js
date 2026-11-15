@@ -76,8 +76,13 @@ export async function loadVersus(onBack) {
         setButtonLoading(pendingSocketButton, true, t("connecting_server"));
         if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
-        socket = new WebSocket(`${WS_BASE_URL}?token=${encodeURIComponent(session.token)}`);
+        socket = new WebSocket(WS_BASE_URL);
         socketAuthenticated = false;
+
+        // The token goes in the first message, not the URL, so it never ends up in proxy logs.
+        socket.onopen = () => {
+            sendWs({ type: "auth", token: session.token });
+        };
 
         socket.onmessage = event => {
             try {
@@ -183,6 +188,7 @@ export async function loadVersus(onBack) {
 
             case "error":
                 showRequestError(msg.message || t("game_request_error"));
+                if (msg.code === "MATCH_START_FAILED") renderLobby();
                 break;
         }
     }
