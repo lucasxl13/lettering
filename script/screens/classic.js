@@ -1,3 +1,4 @@
+import { setRoute } from "../systems/router.js";
 import { getLanguage, t } from "../systems/language.js";
 import { startGridEffects } from "../systems/grid-effects.js";
 import { applyProgressionAward, getSession } from "../systems/auth.js";
@@ -39,6 +40,7 @@ export async function loadClassic(onBack, options = {}) {
     const theme = options.theme ?? null;
     let wordTarget = mode === "learning" ? Number(options.wordTarget ?? 5) : null;
     let initialSnapshot = null;
+    setRoute("classic", { mode, theme, wordTarget });
 
     if (authenticated) {
         try {

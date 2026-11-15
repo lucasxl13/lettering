@@ -1,3 +1,4 @@
+import { setRoute } from "../systems/router.js";
 import { getLanguage, t } from "../systems/language.js";
 import { startGridEffects } from "../systems/grid-effects.js";
 import { applyProgressionAward, checkSession, getSession } from "../systems/auth.js";
@@ -20,6 +21,7 @@ export async function loadVersus(onBack) {
         onBack?.();
         return;
     }
+    setRoute("versus");
 
     const app = document.getElementById("app");
     let socket = null;

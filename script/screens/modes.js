@@ -1,3 +1,4 @@
+import { setRoute } from "../systems/router.js";
 import { t } from "../systems/language.js";
 import { getSession } from "../systems/auth.js";
 import { registerModal } from "../systems/modal.js";
@@ -58,6 +59,7 @@ const LEARNING_THEMES = [
 ];
 
 export function loadModes(onBack) {
+    setRoute("modes");
     const app = document.getElementById("app");
     const session = getSession();
     let selectedMode = getSelectedMode();

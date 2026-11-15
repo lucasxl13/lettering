@@ -1,3 +1,4 @@
+import { setRoute } from "../systems/router.js";
 import { t, getLanguage } from "../systems/language.js";
 import { getSession } from "../systems/auth.js";
 import { GENERAL_DECK_ID, MAX_CARDS, scheduleCard, dueCards } from "../systems/flashcards.js";
@@ -94,6 +95,11 @@ export async function loadFlashcards(onBack, initialView = "decks", initialDeckI
     }
     function render() {
         const deck = currentDeck();
+        const deckView = (view === "edit" || view === "study") && deck;
+        setRoute("flashcards", {
+            view: deckView || ["decks", "create", "statistics", "shop"].includes(view) ? view : "decks",
+            deck: deckView ? selectedId : null
+        });
         let content;
         if (view === "statistics") {
             const cards = decks.flatMap(item => item.cards);

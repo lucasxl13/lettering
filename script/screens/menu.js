@@ -1,3 +1,4 @@
+import { setRoute } from "../systems/router.js";
 import { t, loadLanguage, getLanguage } from "../systems/language.js";
 import { getSession, logout } from "../systems/auth.js";
 import { openLoginModal } from "./access.js";
@@ -16,6 +17,7 @@ const LANGUAGES = [
 ];
 
 export function loadMenu() {
+    setRoute(null);
     const app = document.getElementById("app");
     const session = getSession();
     const userName = session
