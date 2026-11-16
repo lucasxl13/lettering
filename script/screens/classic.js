@@ -212,6 +212,12 @@ export async function loadClassic(onBack, options = {}) {
     let foundWordsFitFrame = null;
     const foundWordsResizeObserver = new ResizeObserver(scheduleFoundWordsFit);
     foundWordsResizeObserver.observe(foundWordsList);
+    let boardFitFrame = null;
+    const boardFitResizeObserver = new ResizeObserver(scheduleBoardFit);
+    [screen, ...boardElement.parentElement.children]
+        .filter(element => element !== boardElement)
+        .forEach(element => boardFitResizeObserver.observe(element));
+    fitBoardToScreen();
     let touchStart = null;
     let touchHoldTimeout = null;
     let touchDropInterval = null;
@@ -866,6 +872,34 @@ export async function loadClassic(onBack, options = {}) {
         scheduleFoundWordsFit();
     }
 
+    function scheduleBoardFit() {
+        if (boardFitFrame !== null) window.cancelAnimationFrame(boardFitFrame);
+        boardFitFrame = window.requestAnimationFrame(() => {
+            boardFitFrame = null;
+            fitBoardToScreen();
+        });
+    }
+
+    // The board is sized from the height left after the header, powers, current piece and
+    // round words, measured from the real elements (they change with the mode, the language
+    // and the window size), so the whole game always fits on screen.
+    function fitBoardToScreen() {
+        if (!screen.isConnected) return;
+        const screenStyle = window.getComputedStyle(screen);
+        let used = parseFloat(screenStyle.paddingTop) + parseFloat(screenStyle.paddingBottom);
+        for (const element of boardElement.parentElement.children) {
+            if (element === boardElement) continue;
+            const style = window.getComputedStyle(element);
+            if (style.display === "none" || style.position === "absolute" || style.position === "fixed") continue;
+            used += element.getBoundingClientRect().height + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+        }
+        const available = Math.max(0, Math.floor(screen.clientHeight - used - 2));
+        const value = `${available}px`;
+        if (screen.style.getPropertyValue("--max-board-height") !== value) {
+            screen.style.setProperty("--max-board-height", value);
+        }
+    }
+
     function scheduleFoundWordsFit() {
         if (foundWordsFitFrame !== null) window.cancelAnimationFrame(foundWordsFitFrame);
         foundWordsFitFrame = window.requestAnimationFrame(() => {
@@ -1089,7 +1123,9 @@ export async function loadClassic(onBack, options = {}) {
         window.clearInterval(timer);
         window.clearInterval(gravity);
         foundWordsResizeObserver.disconnect();
+        boardFitResizeObserver.disconnect();
         if (foundWordsFitFrame !== null) window.cancelAnimationFrame(foundWordsFitFrame);
+        if (boardFitFrame !== null) window.cancelAnimationFrame(boardFitFrame);
         clearTouchDrop();
         window.removeEventListener("pointerup", stopTouchAcceleration, true);
         window.removeEventListener("pointercancel", stopTouchAcceleration, true);
@@ -1146,6 +1182,7 @@ export async function loadClassic(onBack, options = {}) {
             window.clearInterval(timer);
             window.clearInterval(gravity);
             foundWordsResizeObserver.disconnect();
+            boardFitResizeObserver.disconnect();
             document.removeEventListener("keydown", handleKeyboard);
             return;
         }
