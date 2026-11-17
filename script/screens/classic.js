@@ -71,34 +71,39 @@ export async function loadClassic(onBack, options = {}) {
         () => Array(BOARD_COLUMNS).fill(null)
     );
     if (authenticated) fillBoardFromCells(board, initialSnapshot.match.board.cells);
+    // Partida de convidado não existe no servidor: restaura o que foi salvo antes do F5.
+    const guestSave = authenticated ? null : readGuestMatch({ mode, theme, wordTarget });
+    if (guestSave) fillBoardFromSaved(board, guestSave.board);
     const cycleDictionary = mode === "learning" ? thematicDictionary : dictionary;
     let wordCycle = authenticated
         ? initialSnapshot.match.wordCycle
+        : guestSave ? guestSave.wordCycle
         : mode === "hardcore" ? null
         : createWordCycle(cycleDictionary, theme ?? "general");
-    let letterRotationIndex = 0;
+    let letterRotationIndex = guestSave?.letterRotationIndex ?? 0;
     let currentBatch = authenticated
         ? initialSnapshot.match.letterOptions
+        : guestSave ? guestSave.currentBatch
         : createModeLetterBatch(mode, letterWeights, thematicDictionary, letterRotationIndex++, wordCycle, board);
-    const activeBlock = { row: 0, column: Math.floor(BOARD_COLUMNS / 2) };
+    const activeBlock = guestSave?.activeBlock ?? { row: 0, column: Math.floor(BOARD_COLUMNS / 2) };
     let horizontalMovement = 0;
-    let selectedLetterIndex = 0;
+    let selectedLetterIndex = guestSave?.selectedLetterIndex ?? 0;
     let elapsedSeconds = authenticated
         ? Math.floor(initialSnapshot.match.player.gameTimeMs / 1000)
-        : 0;
+        : guestSave?.elapsedSeconds ?? 0;
     const initialGuestLives = mode === "hardcore" ? 1 : 3;
-    let lives = authenticated ? initialSnapshot.match.player.livesRemaining : initialGuestLives;
-    let score = authenticated ? initialSnapshot.match.player.score : 0;
+    let lives = authenticated ? initialSnapshot.match.player.livesRemaining : guestSave?.lives ?? initialGuestLives;
+    let score = authenticated ? initialSnapshot.match.player.score : guestSave?.score ?? 0;
     let gameplayState = createGameplayState(
-        authenticated ? initialSnapshot.match.gameplayState : undefined
+        authenticated ? initialSnapshot.match.gameplayState : guestSave?.gameplayState
     );
     let comboExpiresAt = gameplayState.comboMultiplier > 0 ? Date.now() + COMBO_WINDOW_MS : 0;
     let pendingWord = authenticated && initialSnapshot.match.pendingWord
         ? normalizeServerWord(initialSnapshot.match.pendingWord)
-        : null;
+        : guestSave?.pendingWord ?? null;
     const foundWords = authenticated
         ? initialSnapshot.match.foundWords.map(normalizeServerWord)
-        : [];
+        : guestSave?.foundWords ?? [];
     const thematicFoundWords = new Set(
         foundWords
             .map(item => item.word)
@@ -1119,7 +1124,18 @@ export async function loadClassic(onBack, options = {}) {
         `;
     }
 
+    function saveGuestState() {
+        if (authenticated || gameEnded || !screen.isConnected) return;
+        writeGuestMatch({
+            mode, theme, wordTarget, board, wordCycle, letterRotationIndex, currentBatch,
+            activeBlock, selectedLetterIndex, elapsedSeconds, lives, score,
+            gameplayState: { ...gameplayState, lastWordAt: null }, pendingWord, foundWords
+        });
+    }
+
     function stopGame() {
+        window.removeEventListener("pagehide", saveGuestState);
+        clearGuestMatch();
         window.clearInterval(timer);
         window.clearInterval(gravity);
         foundWordsResizeObserver.disconnect();
@@ -1137,6 +1153,7 @@ export async function loadClassic(onBack, options = {}) {
 
     document.addEventListener("keydown", handleKeyboard);
     document.getElementById("pause-game").addEventListener("click", openPauseMenu);
+    if (!authenticated) window.addEventListener("pagehide", saveGuestState);
     let pausedBeforeTour = paused;
     const gameTourOptions = {
         onOpen: () => {
@@ -1179,6 +1196,8 @@ export async function loadClassic(onBack, options = {}) {
 
     const timer = window.setInterval(() => {
         if (!screen.isConnected) {
+            window.removeEventListener("pagehide", saveGuestState);
+            clearGuestMatch();
             window.clearInterval(timer);
             window.clearInterval(gravity);
             foundWordsResizeObserver.disconnect();
@@ -1191,6 +1210,7 @@ export async function loadClassic(onBack, options = {}) {
 
         elapsedSeconds += 1;
         timeDisplay.textContent = formatTime(elapsedSeconds);
+        saveGuestState();
         if (gameplayState.comboMultiplier > 0) {
             if (Date.now() > comboExpiresAt) {
                 gameplayState.comboMultiplier = 0;
@@ -1204,6 +1224,51 @@ export async function loadClassic(onBack, options = {}) {
         if (!screen.isConnected) return;
         dropBlock();
     }, 700);
+
+    // Ao voltar de um F5, começa pausado para o jogador se situar antes da peça cair.
+    if (guestSave) openPauseMenu();
+}
+
+const GUEST_MATCH_KEY = "lettering-guest-match-v1";
+
+function readGuestMatch({ mode, theme, wordTarget }) {
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(GUEST_MATCH_KEY) ?? "null");
+        if (!saved || saved.mode !== mode || saved.theme !== theme || saved.wordTarget !== wordTarget) {
+            return null;
+        }
+        const validBoard = Array.isArray(saved.board) && saved.board.length === BOARD_ROWS;
+        const validBatch = Array.isArray(saved.currentBatch) && saved.currentBatch.length > 0;
+        if (!validBoard || !validBatch || !(saved.lives > 0)) return null;
+        return saved;
+    } catch {
+        return null;
+    }
+}
+
+function writeGuestMatch(state) {
+    try {
+        sessionStorage.setItem(GUEST_MATCH_KEY, JSON.stringify(state));
+    } catch {
+        // Sem armazenamento disponível, a partida só não sobrevive ao F5.
+    }
+}
+
+function clearGuestMatch() {
+    try {
+        sessionStorage.removeItem(GUEST_MATCH_KEY);
+    } catch {
+        // Nada a limpar.
+    }
+}
+
+function fillBoardFromSaved(board, savedBoard) {
+    savedBoard.forEach((row, rowIndex) => {
+        for (let column = 0; column < BOARD_COLUMNS; column += 1) {
+            const letter = row?.[column];
+            board[rowIndex][column] = typeof letter === "string" && /^[A-Z]$/.test(letter) ? letter : null;
+        }
+    });
 }
 
 function createBoardCells() {
