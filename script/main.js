@@ -1,4 +1,4 @@
-import { loadLanguage } from "./systems/language.js";
+import { getSavedLanguage, loadLanguage } from "./systems/language.js";
 import { loadTheme } from "./systems/theme.js";
 import { loadMenu } from "./screens/menu.js";
 import { checkSession, getSession } from "./systems/auth.js";
@@ -21,7 +21,7 @@ const isEditableTarget = target => target instanceof Element
 
 loadTheme();
 installAudio();
-await loadLanguage("pt-BR");
+await loadLanguage(getSavedLanguage());
 
 await checkSession();
 await openSavedScreen();

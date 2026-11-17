@@ -3,6 +3,7 @@ import { t, loadLanguage, getLanguage } from "../systems/language.js";
 import { getSession, logout } from "../systems/auth.js";
 import { openLoginModal } from "./access.js";
 import { openSettings } from "./settings.js";
+import { openCredits } from "./credits.js";
 import { loadModes } from "./modes.js";
 import { openGuestWarning } from "./guest-warning.js";
 import { startGridEffects } from "../systems/grid-effects.js";
@@ -57,6 +58,7 @@ export function loadMenu() {
         });
     });
     document.getElementById("settings-button").addEventListener("click", openSettings);
+    document.getElementById("credits-button").addEventListener("click", openCredits);
     document.getElementById("help-button").addEventListener("click", () => {
         if (session) {
             startTour();

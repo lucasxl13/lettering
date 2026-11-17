@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../config.js";
 import { beginNetworkActivity } from "./loading.js";
 
 const SESSION_KEY = "lettering-auth-session";
+const SESSION_CHECK_TIMEOUT_MS = 8_000;
 
 let activeSession = null;
 
@@ -48,9 +49,11 @@ export async function checkSession() {
     if (!session?.token) return null;
 
     try {
+        // Com timeout: uma API lenta não pode segurar a abertura do app.
         const data = await requestAuth("/auth/me", {
             method: "GET",
-            headers: { Authorization: `Bearer ${session.token}` }
+            headers: { Authorization: `Bearer ${session.token}` },
+            signal: AbortSignal.timeout(SESSION_CHECK_TIMEOUT_MS)
         });
         const validatedSession = { token: session.token, user: data.user };
         saveSession(validatedSession);

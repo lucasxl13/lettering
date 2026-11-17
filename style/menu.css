@@ -882,3 +882,38 @@
         font-weight: 400;
     }
 }
+
+.credits-panel {
+    gap: 16px;
+}
+
+.credits-section {
+    width: 100%;
+    display: grid;
+    gap: 6px;
+}
+
+.credits-section h3 {
+    color: var(--primary-color);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.credits-section ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.credits-section a {
+    color: var(--text-color);
+}
+
+.credits-section small {
+    color: var(--muted-text-color);
+}

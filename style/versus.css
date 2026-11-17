@@ -118,3 +118,4 @@
     color: #fff;
     font-size: 19px;
 }
+.versus-player-identity small, .versus-player-metrics small, .versus-controls > div > small, .opponent-watch-label, #connection-label { text-transform: uppercase; }

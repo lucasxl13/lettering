@@ -12,6 +12,8 @@ const BOARD_COLUMNS = 9;
 const PIECE_SIZE = 4;
 const VOWELS = new Set(["A", "E", "I", "O", "U"]);
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 export async function loadVersus(onBack) {
     window._versusCleanup?.();
 
@@ -61,6 +63,9 @@ export async function loadVersus(onBack) {
     let timerInterval = null;
     let activeKeyHandler = null;
     let activeTouchCleanup = null;
+    let intentionalClose = false;
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
 
     renderLobby();
 
@@ -78,6 +83,9 @@ export async function loadVersus(onBack) {
         setButtonLoading(pendingSocketButton, true, t("connecting_server"));
         if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        intentionalClose = false;
         socket = new WebSocket(WS_BASE_URL);
         socketAuthenticated = false;
 
@@ -97,17 +105,48 @@ export async function loadVersus(onBack) {
 
         socket.onerror = () => {
             finishSocketLoading();
-            showRequestError(t("connection_problem"));
+            // Durante a reconexão automática cada falha já é tratada em onclose.
+            if (reconnectAttempts === 0) showRequestError(t("connection_problem"));
         };
 
-        socket.onclose = () => {
+        socket.onclose = event => {
+            if (event.target !== socket) return;
             finishSocketLoading();
             socketAuthenticated = false;
             updateConnectionStatus(false);
+            if (intentionalClose) return;
+
+            // O servidor encerra a partida (W.O.) quando o socket cai, então ela não
+            // pode ser retomada: termina aqui em vez de deixar o tabuleiro travado.
             if (gameStarted && !gameEnded) {
-                showToast(t("connection_problem"));
+                handleMatchOver({ result: "loss", message: t("connection_lost_match") });
             }
+            scheduleReconnect();
         };
+    }
+
+    function scheduleReconnect() {
+        if (!document.querySelector(".versus-screen")) return;
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            showRequestError(t("reconnect_failed"));
+            return;
+        }
+        const delay = Math.min(1000 * 2 ** reconnectAttempts, 10_000);
+        reconnectAttempts += 1;
+        const label = document.getElementById("connection-label");
+        if (label) label.textContent = t("reconnecting");
+        reconnectTimer = window.setTimeout(() => {
+            reconnectTimer = null;
+            if (document.querySelector(".versus-screen")) connectSocket(null);
+        }, delay);
+    }
+
+    function closeSocket() {
+        intentionalClose = true;
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        socket?.close();
+        socket = null;
     }
 
     function sendWs(payload) {
@@ -119,6 +158,8 @@ export async function loadVersus(onBack) {
     function handleSocketMessage(msg) {
         switch (msg.type) {
             case "authenticated": {
+                if (reconnectAttempts > 0) showToast(t("reconnected"));
+                reconnectAttempts = 0;
                 socketAuthenticated = true;
                 updateConnectionStatus(true);
                 finishSocketLoading();
@@ -276,7 +317,7 @@ export async function loadVersus(onBack) {
         });
 
         document.getElementById("btn-back").addEventListener("click", () => {
-            if (socket) socket.close();
+            closeSocket();
             onBack?.();
         });
         document.getElementById("versus-tour-button").addEventListener("click", () => startTour("versus"));
@@ -293,7 +334,7 @@ export async function loadVersus(onBack) {
             <main class="versus-screen">
                 <section class="versus-lobby">
                     <h2>${t("room_code")}</h2>
-                    <p class="versus-lobby-description">Envie este código para o seu amigo:</p>
+                    <p class="versus-lobby-description">${t("share_room_code")}</p>
 
                     <div class="versus-room-card">
                         <div class="versus-room-code-display">
@@ -325,7 +366,7 @@ export async function loadVersus(onBack) {
                     if (btn) btn.textContent = t("copy_code");
                 }, 2000);
             } catch {
-                window.prompt("Copie o código abaixo:", code);
+                window.prompt(t("copy_room_code"), code);
             }
         });
 
@@ -401,11 +442,11 @@ export async function loadVersus(onBack) {
                     <section class="versus-player versus-player--you">
                         <header class="versus-player-header">
                             <div class="versus-player-identity">
-                                <small>VOCÊ</small>
+                                <small>${t("you_label")}</small>
                                 <strong>${escapeHtml(session.user.username)}</strong>
                             </div>
                             <div class="versus-player-metrics">
-                                <span><small>PONTOS</small><strong id="score">${score}</strong></span>
+                                <span><small>${t("points_label")}</small><strong id="score">${score}</strong></span>
                                 <span><small>${t("lives")}</small><strong id="lives-count">${lives}</strong></span>
                             </div>
                         </header>
@@ -415,13 +456,13 @@ export async function loadVersus(onBack) {
                         </div>
                         <div class="versus-controls">
                             <div>
-                                <small>ESCOLHA A LETRA</small>
+                                <small>${t("choose_letter")}</small>
                                 <div class="current-letter-container" id="current-letter-list" role="group">
                                     ${createCurrentBatchHtml(currentBatch, selectedLetterIndex)}
                                 </div>
                             </div>
-                            <p class="versus-keyboard-hint"><kbd>A</kbd><kbd>D</kbd> mover &nbsp; <kbd>S</kbd> descer &nbsp; <kbd>Q</kbd> trocar</p>
-                            <p class="versus-touch-hint">Toque nos lados para mover · toque na peça para trocar · segure para descer</p>
+                            <p class="versus-keyboard-hint"><kbd>A</kbd><kbd>D</kbd> ${t("hint_move")} &nbsp; <kbd>S</kbd> ${t("hint_drop")} &nbsp; <kbd>Q</kbd> ${t("hint_swap")}</p>
+                            <p class="versus-touch-hint">${t("versus_touch_hint")}</p>
                         </div>
                     </section>
 
@@ -430,7 +471,7 @@ export async function loadVersus(onBack) {
                         <div class="versus-badge">VS</div>
                         <div class="versus-status-indicator">
                             <span class="status-dot-connected" id="connection-dot"></span>
-                            <span id="connection-label">ONLINE</span>
+                            <span id="connection-label">${t("online")}</span>
                         </div>
                     </aside>
 
@@ -438,19 +479,19 @@ export async function loadVersus(onBack) {
                     <section class="versus-player versus-player--opponent">
                         <header class="versus-player-header">
                             <div class="versus-player-identity">
-                                <small>OPONENTE</small>
+                                <small>${t("opponent_label")}</small>
                                 <strong>${escapeHtml(opponentUsername)}</strong>
                             </div>
                             <div class="versus-player-metrics">
-                                <span><small>PONTOS</small><strong id="opp-score">${opponentScore}</strong></span>
+                                <span><small>${t("points_label")}</small><strong id="opp-score">${opponentScore}</strong></span>
                                 <span><small>${t("lives")}</small><strong id="opp-lives">${opponentLives}</strong></span>
                             </div>
                         </header>
 
-                        <div class="versus-board versus-board--opponent" id="opponent-board" role="grid" aria-label="Matriz de ${escapeHtml(opponentUsername)}">
+                        <div class="versus-board versus-board--opponent" id="opponent-board" role="grid" aria-label="${escapeHtml(t("board_of").replace("{name}", opponentUsername))}">
                             ${createOpponentCellsHtml()}
                         </div>
-                        <div class="opponent-watch-label">MATRIZ EM TEMPO REAL</div>
+                        <div class="opponent-watch-label">${t("live_board")}</div>
                     </section>
                 </div>
             </main>
@@ -846,16 +887,16 @@ export async function loadVersus(onBack) {
         overlay.innerHTML = `
             <section class="versus-result-modal ${modalClass}">
                 <h2>${title}</h2>
-                <p>${escapeHtml(data.message || (isWin ? "Parabéns, você superou seu oponente!" : "Seu oponente resistiu mais tempo."))}</p>
+                <p>${escapeHtml(data.message || (isWin ? t("versus_win_message") : t("versus_loss_message")))}</p>
 
                 <div class="versus-result-scores">
                     <div class="versus-score-box">
-                        <small>Você (${escapeHtml(session.user.username)})</small>
-                        <strong>${score} pts</strong>
+                        <small>${escapeHtml(t("you_named").replace("{name}", session.user.username))}</small>
+                        <strong>${score} ${t("points_short")}</strong>
                     </div>
                     <div class="versus-score-box">
                         <small>${escapeHtml(opponentUsername)}</small>
-                        <strong>${opponentScore} pts</strong>
+                        <strong>${opponentScore} ${t("points_short")}</strong>
                     </div>
                 </div>
 
@@ -879,7 +920,7 @@ export async function loadVersus(onBack) {
 
         overlay.querySelector("#btn-versus-leave").addEventListener("click", async () => {
             overlay.remove();
-            if (socket) socket.close();
+            closeSocket();
             await checkSession();
             onBack?.();
         });
@@ -911,8 +952,7 @@ export async function loadVersus(onBack) {
         cleanupGame();
         gameEnded = true;
         sendWs({ type: "leave_match" });
-        socket?.close();
-        socket = null;
+        closeSocket();
         onBack?.();
     }
 
@@ -920,7 +960,7 @@ export async function loadVersus(onBack) {
         const dot = document.getElementById("connection-dot");
         const label = document.getElementById("connection-label");
         if (dot) dot.className = connected ? "status-dot-connected" : "status-dot-disconnected";
-        if (label) label.textContent = connected ? "ONLINE" : "DESCONECTADO";
+        if (label) label.textContent = t(connected ? "online" : "offline");
     }
 
     function showRequestError(message) {
