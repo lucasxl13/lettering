@@ -92,6 +92,7 @@
     "loading_ranking": "Loading ranking...",
     "empty_ranking": "There are no results in this ranking yet.",
     "ranking_error": "The ranking could not be loaded.",
+    "ranking_best_match_note": "Each player is shown with their best result in a single match. Points are not added up across matches.",
     "my_decks": "My decks",
     "statistics": "Statistics",
     "choose_mode": "Choose a mode",

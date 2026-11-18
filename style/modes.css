@@ -467,7 +467,7 @@
     width: min(720px, 100%);
     height: min(720px, calc(100dvh - 40px));
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
     overflow: hidden;
     text-align: left;
 }
@@ -493,6 +493,18 @@
     color: var(--primary-color);
     background: rgba(var(--primary-rgb), .12);
     border: 1px solid rgba(var(--primary-rgb), .35);
+}
+
+.ranking-note {
+    margin: -6px 0 14px;
+    padding: 9px 12px;
+    color: var(--muted-text-color);
+    font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    text-transform: none;
+    border-left: 3px solid rgba(var(--primary-rgb), .6);
+    background: rgba(var(--primary-rgb), .06);
 }
 
 .ranking-columns,
@@ -580,6 +592,190 @@
     border: 0;
     background: rgba(var(--primary-rgb), .08);
     box-shadow: none;
+}
+
+/* ---------- Pódio do ranking ---------- */
+@property --podium-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+}
+
+.ranking-position {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.ranking-position b { font-weight: inherit; }
+
+.ranking-row.podium .ranking-position b {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-weight: 700;
+}
+
+/* Top 3 — básico: bronze discreto */
+.ranking-row.podium-3 {
+    background: linear-gradient(90deg, rgba(205, 127, 50, .16), transparent 70%);
+    box-shadow: inset 3px 0 0 #cd7f32;
+}
+.ranking-row.podium-3 .ranking-position b {
+    color: #2a1405;
+    background: linear-gradient(145deg, #f0b27a, #cd7f32 55%, #8a4b17);
+}
+.ranking-row.podium-3 strong { color: #f0b27a; }
+
+/* Top 2 — médio: prata com brilho que passa de tempos em tempos */
+.ranking-row.podium-2 {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(220, 228, 240, .2), rgba(220, 228, 240, .04) 75%);
+    box-shadow: inset 4px 0 0 #dfe6f0, 0 0 14px rgba(220, 228, 240, .18);
+}
+.ranking-row.podium-2::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .22) 50%, transparent 65%);
+    transform: translateX(-100%);
+    animation: podium-sweep 4.5s ease-in-out infinite;
+    pointer-events: none;
+}
+.ranking-row.podium-2 .ranking-position b {
+    color: #1d222b;
+    background: linear-gradient(145deg, #ffffff, #c4ccd8 55%, #8892a3);
+    box-shadow: 0 0 8px rgba(220, 228, 240, .5);
+}
+.ranking-row.podium-2 strong {
+    color: transparent;
+    background: linear-gradient(90deg, #ffffff, #b8c2d1, #ffffff);
+    background-clip: text;
+    -webkit-background-clip: text;
+    font-weight: 700;
+}
+
+/* Top 1 — o show: fogo em pixels na cor do tema, borda girando e coroa de blocos */
+.ranking-row.podium-1 {
+    position: relative;
+    z-index: 0;
+    min-height: 60px;
+    margin: 26px 2px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: linear-gradient(90deg, rgba(var(--primary-rgb), .28), rgba(var(--primary-rgb), .08) 80%);
+    animation: podium-glow 2.4s ease-in-out infinite;
+    isolation: isolate;
+}
+/* Borda animada (conic-gradient girando por trás de uma máscara) */
+.ranking-row.podium-1::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: 2px;
+    border-radius: inherit;
+    background: conic-gradient(from var(--podium-angle),
+        #ffffff, var(--primary-color), var(--secondary-color), var(--primary-color),
+        #ffffff, var(--primary-color), var(--secondary-color), #ffffff);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: podium-spin 3s linear infinite;
+    pointer-events: none;
+}
+/* Reflexo varrendo a linha */
+.ranking-row.podium-1::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, .22) 50%, transparent 60%) -200% 0 / 200% 100% no-repeat;
+    animation: podium-shine 3.2s ease-in-out infinite;
+    pointer-events: none;
+}
+.podium-fire {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    width: 100%;
+    /* Passa um pouco do topo da linha: as chamas "lambem" acima dela */
+    height: calc(100% + 20px);
+    image-rendering: pixelated;
+    opacity: .85;
+    /* Mais fogo nas pontas e menos atrás do nome, para o texto continuar legível */
+    -webkit-mask: linear-gradient(90deg, rgba(0, 0, 0, .55) 0 12%, #000 18%, rgba(0, 0, 0, .3) 32% 62%, #000 82%);
+    mask: linear-gradient(90deg, rgba(0, 0, 0, .55) 0 12%, #000 18%, rgba(0, 0, 0, .3) 32% 62%, #000 82%);
+    pointer-events: none;
+}
+.ranking-row.podium-1 > :not(.podium-fire) { position: relative; z-index: 2; }
+/* Medalha no formato dos blocos do título */
+.ranking-row.podium-1 .ranking-position b {
+    color: #fff;
+    border: 2px solid #fff;
+    border-radius: 8px;
+    background: linear-gradient(145deg, var(--primary-color), var(--secondary-color));
+    box-shadow: 0 0 10px rgba(var(--primary-rgb), .9), 0 0 22px rgba(var(--primary-rgb), .5);
+    animation: podium-medal 2.4s ease-in-out infinite;
+}
+.podium-crown {
+    position: absolute;
+    top: -25px;
+    left: -3px;
+    width: 36px;
+    height: 20px;
+    overflow: visible;
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .85)) drop-shadow(0 0 4px rgba(var(--primary-rgb), 1));
+    animation: podium-crown 2.4s ease-in-out infinite;
+}
+.podium-crown rect {
+    fill: #fff;
+    stroke: var(--primary-color);
+    stroke-width: .8;
+}
+.podium-crown .crown-gem {
+    fill: #fff;
+    animation: podium-gem 1.2s steps(1, jump-end) infinite;
+}
+.podium-crown .crown-gem:nth-of-type(2) { animation-delay: .4s; }
+.podium-crown .crown-gem:nth-of-type(3) { animation-delay: .8s; }
+.ranking-row.podium-1 strong {
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-shadow: 0 0 6px rgba(var(--primary-rgb), 1), 0 0 14px rgba(var(--primary-rgb), .8), 0 2px 2px rgba(0, 0, 0, .6);
+}
+.ranking-row.podium-1 span:nth-last-child(-n + 2) {
+    color: #fff;
+    font-weight: 700;
+    text-shadow: 0 0 6px rgba(var(--primary-rgb), 1), 0 2px 2px rgba(0, 0, 0, .6);
+}
+
+@keyframes podium-spin { to { --podium-angle: 360deg; } }
+@keyframes podium-glow {
+    0%, 100% { box-shadow: 0 0 10px rgba(var(--primary-rgb), .4), 0 0 24px rgba(var(--primary-rgb), .15); }
+    50% { box-shadow: 0 0 18px rgba(var(--primary-rgb), .75), 0 0 38px rgba(var(--primary-rgb), .35); }
+}
+@keyframes podium-shine { 0%, 35% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes podium-gem { 0% { fill: var(--primary-color); } 50% { fill: #fff; } }
+@keyframes podium-medal { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@keyframes podium-crown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes podium-sweep { 0%, 60% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .ranking-row.podium-1,
+    .ranking-row.podium-1::before,
+    .ranking-row.podium-1::after,
+    .ranking-row.podium-1 .ranking-position b,
+    .podium-crown .crown-gem,
+    .podium-crown,
+    .ranking-row.podium-2::after { animation: none; }
 }
 
 .ranking-state {
@@ -744,6 +940,7 @@
     }
 
     .ranking-header { margin-bottom: 10px; }
+    .ranking-note { margin: -4px 0 10px; padding: 7px 10px; font-size: 11px; }
     .ranking-header h2 { font-size: 21px; }
     .ranking-header p,
     .ranking-header > span { font-size: 11px; }

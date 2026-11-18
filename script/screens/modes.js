@@ -6,6 +6,7 @@ import { startGridEffects } from "../systems/grid-effects.js";
 import { loadClassic } from "./classic.js";
 import { loadVersus } from "./versus.js";
 import { getRanking } from "../api/matchesApi.js";
+import { startPixelFire } from "../systems/pixel-fire.js";
 
 import { loadFlashcards } from "./flashcards.js";
 import { GENERAL_DECK_ID } from "../systems/flashcards.js";
@@ -332,6 +333,7 @@ async function openRanking(filters, session) {
                 <div><h2 id="ranking-title">${t("ranking")}</h2><p>${createRankingSubtitle(filters)}</p></div>
                 <span>TOP 100</span>
             </header>
+            <p class="ranking-note">${t("ranking_best_match_note")}</p>
             <div class="ranking-columns">
                 <span>#</span><span>${t("player")}</span>
                 <span>${learning ? t("elapsed_time") : t("score")}</span>
@@ -354,6 +356,7 @@ async function openRanking(filters, session) {
         overlay.querySelector(".ranking-scroll").innerHTML = entries.length
             ? entries.map(entry => createRankingRow(entry, learning, entry.userId === ownId)).join("")
             : `<p class="ranking-state">${t("empty_ranking")}</p>`;
+        overlay.querySelectorAll(".podium-fire").forEach(startPixelFire);
         renderCurrentRankingRow(
             overlay, ranking.currentUser ?? emptyCurrentUser(session), learning
         );
@@ -390,14 +393,38 @@ function createRankingSubtitle(filters) {
 function createRankingRow(entry, learning, current = false, pinned = false) {
     const score = entry.score === null ? "–" : String(entry.score);
     const time = entry.gameTimeMs === null ? "–" : formatRankingTime(entry.gameTimeMs);
+    // Pódio: só na lista (a linha fixa "Sua posição" mantém o visual neutro).
+    const podium = !pinned && [1, 2, 3].includes(Number(entry.position)) ? `podium podium-${entry.position}` : "";
+    const first = podium && Number(entry.position) === 1;
+    const crown = first ? createPixelCrown() : "";
+    const fire = first ? `<canvas class="podium-fire" aria-hidden="true"></canvas>` : "";
     return `
-        <div class="ranking-row ${current ? "current-user" : ""} ${pinned ? "pinned-user" : ""}">
-            <span>${entry.position}</span>
+        <div class="ranking-row ${current ? "current-user" : ""} ${pinned ? "pinned-user" : ""} ${podium}">
+            ${fire}<span class="ranking-position">${crown}<b>${entry.position}</b></span>
             <strong title="${escapeRankingHtml(entry.username)}">${escapeRankingHtml(entry.username)}</strong>
             <span>${learning ? time : score}</span>
             <span>${learning ? score : time}</span>
         </div>
     `;
+}
+
+// Coroa em "blocos" como as letras do título LETTERING: cada pixel é um tile
+// com borda, e as três pontas ganham um bloco claro que pisca.
+const CROWN_PIXELS = [
+    "X...X...X",
+    "X..XXX..X",
+    "XX.XXX.XX",
+    "XXXXXXXXX",
+    "XXXXXXXXX"
+];
+
+function createPixelCrown() {
+    const tiles = CROWN_PIXELS.flatMap((row, y) => [...row].map((cell, x) => {
+        if (cell !== "X") return "";
+        const gem = y === 0 ? " class=\"crown-gem\"" : "";
+        return `<rect${gem} x="${x * 5 + .5}" y="${y * 5 + .5}" width="4" height="4" rx="1"/>`;
+    })).join("");
+    return `<svg class="podium-crown" viewBox="0 0 45 25" aria-hidden="true">${tiles}</svg>`;
 }
 
 function formatRankingTime(milliseconds) {

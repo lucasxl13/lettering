@@ -54,3 +54,10 @@ test("slow-network feedback is translated and cached in the app shell", () => {
         assert.ok(messages.loading_match);
     }
 });
+
+test("service worker fetches code from the network first so deploys never mix versions", () => {
+    const worker = readFileSync(new URL("service-worker.js", root), "utf8");
+    assert.match(worker, /\\.\(\?:js\|mjs\|css\|json\|webmanifest\)\$/);
+    const codeBranch = worker.slice(worker.indexOf("(?:js|mjs|css|json|webmanifest)"));
+    assert.ok(codeBranch.indexOf("fetch(request") < codeBranch.indexOf("caches.match(request)"));
+});

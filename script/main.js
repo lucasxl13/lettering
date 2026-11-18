@@ -1,4 +1,6 @@
-import { getSavedLanguage, loadLanguage } from "./systems/language.js";
+// Import por namespace: se um cache (Cloudflare/service worker) entregar um language.js
+// antigo sem getSavedLanguage, o boot cai para pt-BR em vez de quebrar com SyntaxError.
+import * as language from "./systems/language.js";
 import { loadTheme } from "./systems/theme.js";
 import { loadMenu } from "./screens/menu.js";
 import { checkSession, getSession } from "./systems/auth.js";
@@ -21,7 +23,7 @@ const isEditableTarget = target => target instanceof Element
 
 loadTheme();
 installAudio();
-await loadLanguage(getSavedLanguage());
+await language.loadLanguage(language.getSavedLanguage?.() ?? "pt-BR");
 
 await checkSession();
 await openSavedScreen();

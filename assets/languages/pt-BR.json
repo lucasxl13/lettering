@@ -92,6 +92,7 @@
     "loading_ranking": "Carregando ranking...",
     "empty_ranking": "Ainda não há resultados neste ranking.",
     "ranking_error": "Não foi possível carregar o ranking.",
+    "ranking_best_match_note": "Cada jogador aparece com seu melhor resultado em uma única partida. Os pontos não são somados entre partidas.",
     "my_decks": "Meus decks",
     "statistics": "Estatísticas",
     "choose_mode": "Escolha um modo",

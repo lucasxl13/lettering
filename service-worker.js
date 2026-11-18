@@ -1,4 +1,4 @@
-const CACHE_NAME = "lettering-shell-v10";
+const CACHE_NAME = "lettering-shell-v12";
 const APP_SHELL = [
     "./", "./index.html", "./manifest.webmanifest",
     "./style/index.css", "./style/access.css", "./style/menu.css", "./style/modes.css",
@@ -43,6 +43,21 @@ self.addEventListener("fetch", event => {
         return;
     }
 
+    // Código e textos (JS, CSS, JSON): rede primeiro, cache só offline. Servir esses
+    // arquivos do cache misturava versões depois de um deploy (main.js novo com
+    // language.js velho) e o site quebrava até alguém limpar os dados do navegador.
+    if (/\.(?:js|mjs|css|json|webmanifest)$/.test(url.pathname)) {
+        event.respondWith(fetch(request, { cache: "no-cache" }).then(response => {
+            if (response.status === 200) {
+                const copy = response.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+            }
+            return response;
+        }).catch(() => caches.match(request)));
+        return;
+    }
+
+    // Imagens, fontes e áudio: cache primeiro, atualizando em segundo plano.
     event.respondWith(caches.match(request).then(cached => {
         // "no-cache" revalida com o servidor; sem isso a atualização em segundo plano podia
         // receber do cache HTTP a mesma versão antiga e nunca trocar o arquivo.
