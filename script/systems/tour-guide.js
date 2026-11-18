@@ -20,13 +20,27 @@ export function getTourStorageKey(userId, scope = "menu") {
     return `lettering-tour:${TOUR_VERSION}:${encodeURIComponent(String(userId))}${suffix}`;
 }
 
-export function hasCompletedTour(userId, storage = window.localStorage, scope = "menu") {
-    if (!userId) return false;
+export function getDeviceTourStorageKey(scope = "menu") {
+    return `lettering-tour:${TOUR_VERSION}:device:${encodeURIComponent(scope)}`;
+}
 
+// A tour counts as seen if this user saw it or if it was already shown on this
+// device (e.g. as a guest before logging in), so it never auto-opens twice.
+export function hasCompletedTour(userId, storage = window.localStorage, scope = "menu") {
     try {
-        return storage.getItem(getTourStorageKey(userId, scope)) === "complete";
+        if (storage.getItem(getDeviceTourStorageKey(scope)) === "complete") return true;
+        return Boolean(userId) && storage.getItem(getTourStorageKey(userId, scope)) === "complete";
     } catch {
         return false;
+    }
+}
+
+export function markTourSeen(userId, storage = window.localStorage, scope = "menu") {
+    try {
+        storage.setItem(getDeviceTourStorageKey(scope), "complete");
+        if (userId) storage.setItem(getTourStorageKey(userId, scope), "complete");
+    } catch {
+        // The tour still works when browser storage is unavailable.
     }
 }
 
@@ -51,7 +65,11 @@ export function maybeStartTour({ scope = "menu", delay = 700, onOpen, onClose } 
         const currentSession = getSession();
         if (!shouldShowTour(currentSession, window.localStorage, scope) || activeTour) return;
         if (!document.querySelector(TOUR_SCREENS[scope]) || document.querySelector(".login-overlay, .settings-overlay, .mode-selector-overlay, .pause-overlay")) return;
-        startTour(scope, { onOpen, onClose });
+        // Record it as seen as soon as it opens automatically, so reloading or
+        // leaving mid-tour does not make it pop up again. "Ajuda" reopens it.
+        if (startTour(scope, { onOpen, onClose })) {
+            markTourSeen(getTourOwner(currentSession, scope), window.localStorage, scope);
+        }
     }, delay);
     return true;
 }
@@ -91,11 +109,7 @@ export function startTour(scope = "menu", { onOpen, onClose } = {}) {
     onOpen?.();
 
     function markComplete() {
-        try {
-            window.localStorage.setItem(getTourStorageKey(owner, scope), "complete");
-        } catch {
-            // The tour still works when browser storage is unavailable.
-        }
+        markTourSeen(owner, window.localStorage, scope);
     }
 
     function close(remember = true) {

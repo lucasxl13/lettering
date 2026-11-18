@@ -55,3 +55,14 @@ test("guests receive mode and game help without receiving account onboarding", (
     assert.equal(shouldShowTour(null, storage, "modes"), true);
     assert.equal(shouldShowTour(null, storage, "game"), true);
 });
+
+test("a tour seen on this device (e.g. as guest) does not auto-open again after login", async () => {
+    const { markTourSeen } = await import("../script/systems/tour-guide.js");
+    const storage = storageWith();
+
+    markTourSeen("guest", storage, "modes");
+
+    assert.equal(shouldShowTour(null, storage, "modes"), false);
+    assert.equal(shouldShowTour({ user: { id: "player-1" } }, storage, "modes"), false);
+    assert.equal(shouldShowTour({ user: { id: "player-1" } }, storage, "game"), true);
+});
