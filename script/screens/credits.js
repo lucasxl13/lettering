@@ -1,5 +1,6 @@
 import { t } from "../systems/language.js";
 import { registerModal } from "../systems/modal.js";
+import { showCreditsPrank } from "./credits-prank.js";
 
 const DEVELOPERS = ["Lucas Hatz Cardoso", "Pedro Bigai"];
 
@@ -10,6 +11,10 @@ const AUDIO_CREDITS = [
 ];
 
 export function openCredits() {
+    showCreditsPrank(openRealCredits);
+}
+
+function openRealCredits() {
     if (document.querySelector(".credits-overlay")) return;
 
     const overlay = document.createElement("div");

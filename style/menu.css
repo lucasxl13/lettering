@@ -917,3 +917,133 @@
 .credits-section small {
     color: var(--muted-text-color);
 }
+
+/* Pegadinha dos créditos: página de erro "crua", sem o tema do jogo, para parecer real. */
+.fake-error {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    overflow: auto;
+    background: #fff;
+    color: #222;
+    font-family: "Times New Roman", Times, serif;
+    text-align: left;
+}
+
+.fake-error-page {
+    max-width: 900px;
+    padding: 24px 16px;
+}
+
+.fake-error h1 {
+    margin: 0 0 12px;
+    font-size: 2em;
+    font-weight: 700;
+    color: #000;
+}
+
+.fake-error p {
+    margin: 0 0 12px;
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+.fake-error-stack {
+    min-height: 9.5em;
+    margin: 0 0 12px;
+    padding: 10px;
+    overflow-x: auto;
+    background: #f6f6f6;
+    border: 1px solid #ddd;
+    color: #a00;
+    font: 13px/1.45 Consolas, "Courier New", monospace;
+    white-space: pre;
+}
+
+.fake-error-meta,
+.fake-error-footer {
+    color: #666;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px !important;
+}
+
+.fake-error-retry {
+    padding: 4px 14px;
+    font: 14px Arial, sans-serif;
+    color: #000;
+    background: #efefef;
+    border: 1px solid #767676;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.fake-error-retry:disabled {
+    cursor: progress;
+    color: #777;
+}
+
+.fake-error hr {
+    margin: 16px 0 8px;
+    border: 0;
+    border-top: 1px solid #ccc;
+}
+
+.fake-error.is-glitching .fake-error-page {
+    animation: fake-error-glitch .45s steps(2) both;
+}
+
+.fake-error.is-revealed {
+    display: grid;
+    place-items: center;
+    background: var(--background, #111);
+    transition: background .3s;
+}
+
+.fake-error.is-revealed .fake-error-page {
+    display: none;
+}
+
+.fake-error-reveal {
+    display: grid;
+    gap: 8px;
+    padding: 16px;
+    text-align: center;
+    color: var(--text-color, #fff);
+    font-family: inherit;
+    animation: fake-error-pop .5s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+
+.fake-error-reveal[hidden] {
+    display: none;
+}
+
+.fake-error-reveal strong {
+    font-size: clamp(32px, 8vw, 64px);
+    color: var(--primary-color, #f5c518);
+}
+
+.fake-error-reveal span {
+    font-size: 16px;
+    color: var(--muted-text-color, #bbb);
+}
+
+@keyframes fake-error-glitch {
+    0% { transform: translate(0); filter: none; }
+    20% { transform: translate(-6px, 2px) skewX(-8deg); filter: hue-rotate(90deg) contrast(3); }
+    40% { transform: translate(5px, -3px); clip-path: inset(10% 0 40% 0); }
+    60% { transform: translate(-3px, 4px) skewX(6deg); filter: invert(1); }
+    80% { transform: translate(4px, 0); clip-path: inset(50% 0 5% 0); }
+    100% { transform: scale(.96); opacity: 0; }
+}
+
+@keyframes fake-error-pop {
+    from { transform: scale(.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fake-error.is-glitching .fake-error-page,
+    .fake-error-reveal {
+        animation: none;
+    }
+}
